@@ -33,10 +33,7 @@ public class Member extends BaseTimeEntity {
 
     @Column(nullable = false)
     private Long totalTokensEarned = 0L;
-
-    @Column(nullable = false)
-    private Boolean notificationEnabled = true;
-
+    
     private LocalDateTime lastLoginAt;
 
 }
