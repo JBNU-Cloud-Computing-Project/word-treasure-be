@@ -31,4 +31,10 @@ public class Members {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Column(name = "current_tokens")
+    private int currentTokens;
+
+    @Column(name = "total_tokens_earned")
+    private long totalTokensEarned;
 }
