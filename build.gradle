@@ -33,6 +33,9 @@ dependencies {
 
     // Validation
     implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // Security
+    implementation 'org.springframework.security:spring-security-crypto'
     // Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
@@ -45,6 +48,9 @@ dependencies {
 
     // H2
     runtimeOnly 'com.h2database:h2'
+
+    // Swagger / OpenAPI (springdoc)
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13'
 }
 
 tasks.named('test') {
