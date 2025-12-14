@@ -3,6 +3,7 @@ package cloudcomputing.wordtreasure.model.game.entity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
@@ -14,6 +15,7 @@ import java.time.LocalDateTime;
                 @Index(name = "idx_hint_session", columnList = "game_session_id")
         }
 )
+@Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 public class ExtraHint {

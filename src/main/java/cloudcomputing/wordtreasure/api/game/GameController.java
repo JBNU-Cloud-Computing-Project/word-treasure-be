@@ -2,18 +2,17 @@ package cloudcomputing.wordtreasure.api.game;
 
 import cloudcomputing.wordtreasure.api.game.request.GameStartRequest;
 import cloudcomputing.wordtreasure.api.game.request.SubmitAttemptRequest;
-import cloudcomputing.wordtreasure.api.game.response.AttemptResponse;
-import cloudcomputing.wordtreasure.api.game.response.CurrentGameResponse;
-import cloudcomputing.wordtreasure.api.game.response.GameStartResponse;
-import cloudcomputing.wordtreasure.api.game.response.GameSuccessCode;
+import cloudcomputing.wordtreasure.api.game.response.*;
 import cloudcomputing.wordtreasure.common.annotation.Login;
 import cloudcomputing.wordtreasure.common.annotation.LoginRequired;
 import cloudcomputing.wordtreasure.common.controller.response.ApiResponse;
 import cloudcomputing.wordtreasure.model.game.dto.AttemptResult;
 import cloudcomputing.wordtreasure.model.game.dto.CurrentGameInfo;
+import cloudcomputing.wordtreasure.model.game.dto.GameSessionDetail;
 import cloudcomputing.wordtreasure.model.game.dto.GameStartResult;
 import cloudcomputing.wordtreasure.model.game.service.GameDashboardService;
 import cloudcomputing.wordtreasure.model.game.service.GamePlayService;
+import cloudcomputing.wordtreasure.model.game.service.GameSessionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -31,6 +30,7 @@ public class GameController {
 
     private final GameDashboardService dashboardService;
     private final GamePlayService gamePlayService;
+    private final GameSessionService gameSessionService;
 
     /**
      * 현재 게임 상태 조회
@@ -96,6 +96,30 @@ public class GameController {
 
         return ResponseEntity.ok(
                 ApiResponse.success(successCode, response)
+        );
+    }
+
+    /**
+     * 게임 세션 정보 조회
+     */
+    @LoginRequired
+    @GetMapping("/session/{gameSessionId}")
+    @Operation(summary = "게임 세션 정보 조회", description = "게임 세션의 상세 정보(시도 목록, 힌트 등)를 조회합니다.")
+    public ResponseEntity<ApiResponse<GameSessionResponse>> getGameSession(
+            @Login Long memberId,
+            @PathVariable Long gameSessionId
+    ) {
+        log.info("게임 세션 조회 요청 - memberId: {}, gameSessionId: {}", memberId, gameSessionId);
+
+        GameSessionDetail detail = gameSessionService.getGameSessionDetail(
+                gameSessionId,
+                memberId
+        );
+
+        GameSessionResponse response = GameSessionResponse.from(detail);
+
+        return ResponseEntity.ok(
+                ApiResponse.success(GameSuccessCode.SESSION_INFO, response)
         );
     }
 }
