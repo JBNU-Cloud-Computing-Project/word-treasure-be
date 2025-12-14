@@ -1,15 +1,13 @@
 package cloudcomputing.wordtreasure.api.game;
 
 import cloudcomputing.wordtreasure.api.game.request.GameStartRequest;
+import cloudcomputing.wordtreasure.api.game.request.HintRequest;
 import cloudcomputing.wordtreasure.api.game.request.SubmitAttemptRequest;
 import cloudcomputing.wordtreasure.api.game.response.*;
 import cloudcomputing.wordtreasure.common.annotation.Login;
 import cloudcomputing.wordtreasure.common.annotation.LoginRequired;
 import cloudcomputing.wordtreasure.common.controller.response.ApiResponse;
-import cloudcomputing.wordtreasure.model.game.dto.AttemptResult;
-import cloudcomputing.wordtreasure.model.game.dto.CurrentGameInfo;
-import cloudcomputing.wordtreasure.model.game.dto.GameSessionDetail;
-import cloudcomputing.wordtreasure.model.game.dto.GameStartResult;
+import cloudcomputing.wordtreasure.model.game.dto.*;
 import cloudcomputing.wordtreasure.model.game.service.GameDashboardService;
 import cloudcomputing.wordtreasure.model.game.service.GamePlayService;
 import cloudcomputing.wordtreasure.model.game.service.GameSessionService;
@@ -120,6 +118,26 @@ public class GameController {
 
         return ResponseEntity.ok(
                 ApiResponse.success(GameSuccessCode.SESSION_INFO, response)
+        );
+    }
+
+    /**
+     * 추가 힌트 요청
+     */
+    @LoginRequired
+    @PostMapping("/hint")
+    @Operation(summary = "추가 힌트 요청", description = "토큰을 소비하고 추가 힌트를 받습니다.")
+    public ResponseEntity<ApiResponse<HintResponse>> requestHint(
+            @Login Long memberId,
+            @Valid @RequestBody HintRequest request
+    ) {
+        log.info("힌트 요청 - memberId: {}, gameSessionId: {}", memberId, request.gameSessionId());
+
+        HintResult result = gamePlayService.requestHint(request.gameSessionId());
+        HintResponse response = HintResponse.from(result);
+
+        return ResponseEntity.ok(
+                ApiResponse.success(GameSuccessCode.HINT_PROVIDED, response)
         );
     }
 }

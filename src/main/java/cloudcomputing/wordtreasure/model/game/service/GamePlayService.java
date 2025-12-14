@@ -2,6 +2,7 @@ package cloudcomputing.wordtreasure.model.game.service;
 
 import cloudcomputing.wordtreasure.model.game.dto.AttemptResult;
 import cloudcomputing.wordtreasure.model.game.dto.GameStartResult;
+import cloudcomputing.wordtreasure.model.game.dto.HintResult;
 import cloudcomputing.wordtreasure.model.game.entity.*;
 import cloudcomputing.wordtreasure.model.game.repository.DailyWordRepository;
 import cloudcomputing.wordtreasure.model.game.repository.GameSessionRepository;
@@ -182,6 +183,65 @@ public class GamePlayService {
         );
     }
 
+    /**
+     * 추가 힌트 요청
+     */
+    @Transactional
+    public HintResult requestHint(Long gameSessionId) {
+        log.info("힌트 요청 - gameSessionId: {}", gameSessionId);
+
+        // 1. 게임 세션 조회
+        GameSession session = gameSessionRepository.findById(gameSessionId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 게임 세션입니다."));
+
+        // 2. 게임 진행 중인지 확인
+        if (session.getStatus() != GameStatus.PLAYING) {
+            throw new IllegalStateException("이미 종료된 게임입니다.");
+        }
+
+        // 3. 힌트 비용 조회
+        int hintCost = gameConfigService.getIntValue(GameConfigKey.HINT_COST_TOKENS);
+
+        // 4. 토큰 차감
+        tokenService.deductTokens(
+                session.getMember().getMemberId(),
+                hintCost,
+                TransactionType.HINT_COST,
+                "추가 힌트 요청",
+                session
+        );
+
+        // 5. 힌트 생성
+        String hintText = generateExtraHint(session);
+
+        // 6. 힌트 저장
+        ExtraHint extraHint = new ExtraHint(
+                null,
+                session,
+                hintText,
+                hintCost,
+                LocalDateTime.now()
+        );
+
+        ExtraHint savedHint = extraHintRepository.save(extraHint);
+
+        // 7. 세션의 토큰 소비 누적
+        updateSessionTokensSpent(session, hintCost);
+
+        // 8. 회원의 현재 토큰 조회
+        Member member = memberRepository.findById(session.getMember().getMemberId())
+                .orElseThrow(() -> new IllegalArgumentException("회원을 찾을 수 없습니다."));
+
+        log.info("힌트 요청 완료 - hintId: {}, hintText: {}", savedHint.getId(), hintText);
+
+        return new HintResult(
+                savedHint.getId(),
+                hintText,
+                hintCost,
+                member.getCurrentTokens()
+        );
+    }
+
     // ========== Private 메서드 ==========
 
     /**
@@ -281,5 +341,33 @@ public class GamePlayService {
         long secs = seconds % 60;
 
         return String.format("%02d:%02d:%02d", hours, minutes, secs);
+    }
+
+    /**
+     * 추가 힌트 생성
+     * <p>
+     * 현재: 간단한 힌트 생성 로직
+     * 향후: 더 정교한 힌트 생성 로직으로 교체 가능
+     */
+    private String generateExtraHint(GameSession session) {
+        String answer = session.getDailyWord().getWord();
+        String description = session.getDailyWord().getDescription();
+        Difficulty difficulty = session.getDailyWord().getDifficulty();
+        int attemptCount = session.getAttemptCount();
+
+        // 시도 횟수에 따라 힌트 난이도 조절
+        if (attemptCount < 3) {
+            // 초반: 카테고리 힌트
+            return String.format("이 단어는 '%s'에 관련된 단어입니다.",
+                    description.substring(0, Math.min(10, description.length())));
+        } else if (attemptCount < 6) {
+            // 중반: 글자 수 힌트
+            return String.format("정답은 총 %d글자입니다.", answer.length());
+        } else {
+            // 후반: 구체적인 힌트
+            String firstChar = answer.substring(0, 1);
+            String lastChar = answer.substring(answer.length() - 1);
+            return String.format("첫 글자는 '%s'이고, 마지막 글자는 '%s'입니다.", firstChar, lastChar);
+        }
     }
 }
