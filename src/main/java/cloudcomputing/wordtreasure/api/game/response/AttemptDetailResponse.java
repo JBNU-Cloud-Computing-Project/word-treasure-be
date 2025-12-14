@@ -5,7 +5,7 @@ import cloudcomputing.wordtreasure.model.game.dto.AttemptInfo;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-record AttemptDetailResponse(
+public record AttemptDetailResponse(
         Integer attemptNumber,
         String userInput,
         BigDecimal similarityScore,
