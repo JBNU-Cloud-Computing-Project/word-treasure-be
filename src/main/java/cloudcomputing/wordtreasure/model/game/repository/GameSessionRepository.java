@@ -20,6 +20,17 @@ public interface GameSessionRepository extends JpaRepository<GameSession, Long> 
     );
 
     /**
+     * 여러 회원의 게임 세션 일괄 조회 (실시간 순위용)
+     */
+    @Query("SELECT gs FROM GameSession gs " +
+            "JOIN FETCH gs.member " +
+            "WHERE gs.member.memberId IN :memberIds AND gs.dailyWord.id = :dailyWordId")
+    List<GameSession> findByMemberIdsAndDailyWordId(
+            @Param("memberIds") List<Long> memberIds,
+            @Param("dailyWordId") Long dailyWordId
+    );
+
+    /**
      * 특정 회원의 최근 게임 세션 조회 (최신순, 완료된 것만)
      */
     @Query("SELECT gs FROM GameSession gs " +
@@ -37,9 +48,11 @@ public interface GameSessionRepository extends JpaRepository<GameSession, Long> 
     Optional<GameSession> findPlayingSessionByMemberId(@Param("memberId") Long memberId);
 
     /**
-     * 특정 일일 단어의 모든 게임 세션 조회 (순위용)
+     * 특정 일일 단어의 모든 성공한 게임 세션 조회 (순위별)
      */
-    @Query("SELECT gs FROM GameSession gs WHERE gs.dailyWord.id = :dailyWordId AND gs.status = 'SUCCESS' ORDER BY gs.completedAt ASC")
+    @Query("SELECT gs FROM GameSession gs " +
+            "WHERE gs.dailyWord.id = :dailyWordId AND gs.status = 'SUCCESS' " +
+            "ORDER BY gs.attemptCount ASC, gs.completedAt ASC")
     List<GameSession> findSuccessfulSessionsByDailyWordId(@Param("dailyWordId") Long dailyWordId);
 
     /**
