@@ -10,6 +10,7 @@ import cloudcomputing.wordtreasure.common.controller.response.ApiResponse;
 import cloudcomputing.wordtreasure.model.game.dto.*;
 import cloudcomputing.wordtreasure.model.game.service.GameDashboardService;
 import cloudcomputing.wordtreasure.model.game.service.GamePlayService;
+import cloudcomputing.wordtreasure.model.game.service.GameResultService;
 import cloudcomputing.wordtreasure.model.game.service.GameSessionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,6 +30,7 @@ public class GameController {
     private final GameDashboardService dashboardService;
     private final GamePlayService gamePlayService;
     private final GameSessionService gameSessionService;
+    private final GameResultService gameResultService;
 
     /**
      * 현재 게임 상태 조회
@@ -138,6 +140,33 @@ public class GameController {
 
         return ResponseEntity.ok(
                 ApiResponse.success(GameSuccessCode.HINT_PROVIDED, response)
+        );
+    }
+
+    /**
+     * 게임 결과 조회
+     */
+    @LoginRequired
+    @GetMapping("/result/{gameSessionId}")
+    @Operation(
+            summary = "게임 결과 조회",
+            description = "완료된 게임의 최종 결과를 조회합니다. 성공/실패 여부에 따라 다른 정보를 제공합니다."
+    )
+    public ResponseEntity<ApiResponse<GameResultResponse>> getGameResult(
+            @Login Long memberId,
+            @PathVariable Long gameSessionId
+    ) {
+        log.info("게임 결과 조회 요청 - memberId: {}, gameSessionId: {}", memberId, gameSessionId);
+
+        GameResult result = gameResultService.getGameResult(
+                gameSessionId,
+                memberId
+        );
+
+        GameResultResponse response = GameResultResponse.from(result);
+
+        return ResponseEntity.ok(
+                ApiResponse.success(GameSuccessCode.GAME_RESULT_INFO, response)
         );
     }
 }
