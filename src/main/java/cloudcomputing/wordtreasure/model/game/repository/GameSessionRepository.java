@@ -1,6 +1,8 @@
 package cloudcomputing.wordtreasure.model.game.repository;
 
 import cloudcomputing.wordtreasure.model.game.entity.GameSession;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -65,4 +67,129 @@ public interface GameSessionRepository extends JpaRepository<GameSession, Long> 
             @Param("memberId") Long memberId,
             @Param("gameDate") LocalDate gameDate
     );
+
+    /**
+     * 일간 리더보드 조회 (시도횟수 + 완료시간 순)
+     */
+    @Query("SELECT gs FROM GameSession gs " +
+            "JOIN FETCH gs.member " +
+            "JOIN FETCH gs.dailyWord " +
+            "WHERE gs.dailyWord.gameDate = :date " +
+            "AND gs.status = 'SUCCESS' " +
+            "ORDER BY gs.attemptCount ASC, gs.completedAt ASC")
+    Page<GameSession> findDailyLeaderboard(
+            @Param("date") LocalDate date,
+            Pageable pageable
+    );
+
+    /**
+     * 일간 특정 회원의 게임 세션 조회 (일간 순위용)
+     */
+    @Query("SELECT gs FROM GameSession gs " +
+            "JOIN FETCH gs.member " +
+            "WHERE gs.member.memberId = :memberId " +
+            "AND gs.dailyWord.gameDate = :date " +
+            "AND gs.status = 'SUCCESS'")
+    Optional<GameSession> findDailySessionByMemberId(
+            @Param("memberId") Long memberId,
+            @Param("date") LocalDate date
+    );
+
+    /**
+     * 일간 전체 성공자 수 조회
+     */
+    @Query("SELECT COUNT(gs) FROM GameSession gs " +
+            "WHERE gs.dailyWord.gameDate = :date " +
+            "AND gs.status = 'SUCCESS'")
+    long countDailySuccessful(@Param("date") LocalDate date);
+
+    /**
+     * 기간별 리더보드 조회 (누적 토큰 기준)
+     */
+    @Query("SELECT gs.member.memberId as memberId, " +
+            "gs.member.nickName as nickname, " +
+            "COUNT(gs) as totalGames, " +
+            "SUM(CASE WHEN gs.status = 'SUCCESS' THEN 1 ELSE 0 END) as successfulGames, " +
+            "SUM(gs.tokensEarned) as tokensEarned, " +
+            "AVG(CASE WHEN gs.status = 'SUCCESS' " +
+            "  THEN TIMESTAMPDIFF(SECOND, gs.startedAt, gs.completedAt) " +
+            "  ELSE NULL END) as avgCompletionSeconds " +
+            "FROM GameSession gs " +
+            "WHERE gs.dailyWord.gameDate BETWEEN :startDate AND :endDate " +
+            "GROUP BY gs.member.memberId, gs.member.nickName " +
+            "ORDER BY tokensEarned DESC")
+    Page<LeaderboardProjection> findPeriodLeaderboard(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            Pageable pageable
+    );
+
+    /**
+     * 기간별 특정 회원의 집계 데이터 조회
+     */
+    @Query("SELECT gs.member.memberId as memberId, " +
+            "gs.member.nickName as nickname, " +
+            "COUNT(gs) as totalGames, " +
+            "SUM(CASE WHEN gs.status = 'SUCCESS' THEN 1 ELSE 0 END) as successfulGames, " +
+            "SUM(gs.tokensEarned) as tokensEarned, " +
+            "AVG(CASE WHEN gs.status = 'SUCCESS' " +
+            "  THEN TIMESTAMPDIFF(SECOND, gs.startedAt, gs.completedAt) " +
+            "  ELSE NULL END) as avgCompletionSeconds " +
+            "FROM GameSession gs " +
+            "WHERE gs.member.memberId = :memberId " +
+            "AND gs.dailyWord.gameDate BETWEEN :startDate AND :endDate " +
+            "GROUP BY gs.member.memberId, gs.member.nickName")
+    Optional<LeaderboardProjection> findPeriodStatsByMemberId(
+            @Param("memberId") Long memberId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
+
+    /**
+     * 기간별 전체 참여자 수 조회 (중복 제거)
+     */
+    @Query("SELECT COUNT(DISTINCT gs.member.memberId) FROM GameSession gs " +
+            "WHERE gs.dailyWord.gameDate BETWEEN :startDate AND :endDate")
+    long countPeriodParticipants(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
+
+    /**
+     * 전체 기간 리더보드 조회
+     */
+    @Query("SELECT gs.member.memberId as memberId, " +
+            "gs.member.nickName as nickname, " +
+            "COUNT(gs) as totalGames, " +
+            "SUM(CASE WHEN gs.status = 'SUCCESS' THEN 1 ELSE 0 END) as successfulGames, " +
+            "SUM(gs.tokensEarned) as tokensEarned, " +
+            "AVG(CASE WHEN gs.status = 'SUCCESS' " +
+            "  THEN TIMESTAMPDIFF(SECOND, gs.startedAt, gs.completedAt) " +
+            "  ELSE NULL END) as avgCompletionSeconds " +
+            "FROM GameSession gs " +
+            "GROUP BY gs.member.memberId, gs.member.nickName " +
+            "ORDER BY tokensEarned DESC")
+    Page<LeaderboardProjection> findAllTimeLeaderboard(Pageable pageable);
+
+    /**
+     * 전체 기간 특정 회원의 집계 데이터 조회
+     */
+    @Query("SELECT gs.member.memberId as memberId, " +
+            "gs.member.nickName as nickname, " +
+            "COUNT(gs) as totalGames, " +
+            "SUM(CASE WHEN gs.status = 'SUCCESS' THEN 1 ELSE 0 END) as successfulGames, " +
+            "SUM(gs.tokensEarned) as tokensEarned, " +
+            "AVG(CASE WHEN gs.status = 'SUCCESS' " +
+            "  THEN TIMESTAMPDIFF(SECOND, gs.startedAt, gs.completedAt) " +
+            "  ELSE NULL END) as avgCompletionSeconds " +
+            "FROM GameSession gs " +
+            "WHERE gs.member.memberId = :memberId " +
+            "GROUP BY gs.member.memberId, gs.member.nickName")
+    Optional<LeaderboardProjection> findAllTimeStatsByMemberId(@Param("memberId") Long memberId);
+
+    /**
+     * 전체 참여자 수 조회
+     */
+    @Query("SELECT COUNT(DISTINCT gs.member.memberId) FROM GameSession gs")
+    long countAllParticipants();
 }
