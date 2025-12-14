@@ -76,12 +76,11 @@ public class TokenService {
      * @param transactionType    거래 유형
      * @param description        거래 설명
      * @param relatedGameSession 관련 게임 세션 (선택)
-     * @return 생성된 거래 내역
      * @throws InsufficientTokenException 토큰 잔액 부족 시
      * @throws IllegalArgumentException   memberId가 존재하지 않거나, amount가 0 이하이거나, 필수 gameSession이 없을 때
      */
     @Transactional
-    public TokenTransaction deductTokens(
+    public void deductTokens(
             Long memberId,
             int amount,
             TransactionType transactionType,
@@ -123,7 +122,6 @@ public class TokenService {
         log.info("토큰 차감 완료 - transactionId: {}, 현재 잔액: {}",
                 savedTransaction.getId(), member.getCurrentTokens());
 
-        return savedTransaction;
     }
 
     /**
