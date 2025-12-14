@@ -4,6 +4,7 @@ import cloudcomputing.wordtreasure.common.audit.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
@@ -17,6 +18,7 @@ import java.time.LocalDate;
                 @Index(name = "idx_daily_word_date", columnList = "game_date")
         }
 )
+@Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 public class DailyWord extends BaseTimeEntity {

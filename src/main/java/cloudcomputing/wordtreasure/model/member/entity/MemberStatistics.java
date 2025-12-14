@@ -3,6 +3,7 @@ package cloudcomputing.wordtreasure.model.member.entity;
 import cloudcomputing.wordtreasure.common.audit.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
@@ -10,6 +11,7 @@ import java.time.LocalDate;
 
 @Entity
 @Table(name = "member_statistics")
+@Getter
 @NoArgsConstructor(access = lombok.AccessLevel.PROTECTED)
 @AllArgsConstructor
 public class MemberStatistics extends BaseTimeEntity {

@@ -4,6 +4,7 @@ import cloudcomputing.wordtreasure.common.audit.BaseTimeEntity;
 import cloudcomputing.wordtreasure.model.member.entity.Member;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
@@ -26,6 +27,7 @@ import java.util.List;
                 )
         }
 )
+@Getter
 @NoArgsConstructor(access = lombok.AccessLevel.PROTECTED)
 @AllArgsConstructor
 public class GameSession extends BaseTimeEntity {

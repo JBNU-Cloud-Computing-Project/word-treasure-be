@@ -8,10 +8,10 @@ spring:
     hibernate:
       ddl-auto: create
     database-platform: org.hibernate.dialect.H2Dialect
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
 
   h2:
     console:
@@ -19,6 +19,17 @@ spring:
       path: /h2-console
       settings:
         web-allow-others: false
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
 
 springdoc:
   swagger-ui:
