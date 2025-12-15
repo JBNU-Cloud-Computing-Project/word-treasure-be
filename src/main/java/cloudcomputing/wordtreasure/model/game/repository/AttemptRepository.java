@@ -19,4 +19,14 @@ public interface AttemptRepository extends JpaRepository<Attempt, Long> {
      */
     @Query("SELECT COUNT(a) FROM Attempt a WHERE a.gameSession.id = :gameSessionId")
     Long countByGameSessionId(@Param("gameSessionId") Long gameSessionId);
+
+    /**
+     * 게임 세션의 특정 시도 번호 조회 (첫 시도 유사도용)
+     */
+    @Query("SELECT a FROM Attempt a " +
+            "WHERE a.gameSession.id = :gameSessionId AND a.attemptNumber = :attemptNumber")
+    List<Attempt> findByGameSessionIdAndAttemptNumber(
+            @Param("gameSessionId") Long gameSessionId,
+            @Param("attemptNumber") Integer attemptNumber
+    );
 }
