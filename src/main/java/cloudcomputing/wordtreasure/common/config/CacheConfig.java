@@ -39,8 +39,18 @@ public class CacheConfig {
                         )
                 );
 
+        // 오늘의 단어 통계 캐시 설정 (1분)
+        RedisCacheConfiguration todayWordConfig = defaultConfig
+                .entryTtl(Duration.ofMinutes(1));
+
+        // 난이도별 통계 캐시 설정 (10분)
+        RedisCacheConfiguration difficultyConfig = defaultConfig
+                .entryTtl(Duration.ofMinutes(10));
+
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)
+                .withCacheConfiguration("todayWordStats", todayWordConfig)
+                .withCacheConfiguration("difficultyStats", difficultyConfig)
                 .build();
     }
 }
