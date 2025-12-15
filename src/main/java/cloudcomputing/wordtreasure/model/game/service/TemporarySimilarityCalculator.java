@@ -69,8 +69,6 @@ public class TemporarySimilarityCalculator implements SimilarityCalculator {
         }
     }
 
-    // ========== Private 메서드 ==========
-
     /**
      * 정규화: 공백 제거, 소문자 변환
      */

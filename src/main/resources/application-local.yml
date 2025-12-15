@@ -30,6 +30,10 @@ spring:
           max-active: 8
           max-idle: 8
           min-idle: 0
+  cache:
+    type: redis  # Caffeine 대신 Redis
+    redis:
+      time-to-live: 300000  # 5분 (밀리초)
 
 springdoc:
   swagger-ui:
