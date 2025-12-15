@@ -45,7 +45,7 @@ public class Member extends BaseTimeEntity {
         this.passwordHash = passwordHash;
         this.currentTokens = 0;
         this.totalTokensEarned = 0L;
-        this.lastLoginAt = lastLoginAt = LocalDateTime.now();
+        this.lastLoginAt = LocalDateTime.now();
     }
 
     public void addTokens(int amount) {

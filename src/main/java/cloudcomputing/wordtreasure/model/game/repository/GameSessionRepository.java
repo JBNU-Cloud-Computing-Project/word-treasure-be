@@ -1,6 +1,7 @@
 package cloudcomputing.wordtreasure.model.game.repository;
 
 import cloudcomputing.wordtreasure.model.game.entity.GameSession;
+import cloudcomputing.wordtreasure.model.game.entity.GameStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -205,4 +206,45 @@ public interface GameSessionRepository extends JpaRepository<GameSession, Long> 
             "AND gs.status = 'SUCCESS'")
     Double calculateAverageAttempts(@Param("date") LocalDate date);
 
+    /**
+     * 회원의 날짜 범위 내 게임 세션 조회 (활동 캘린더용)
+     */
+    @Query("SELECT gs FROM GameSession gs " +
+            "JOIN FETCH gs.dailyWord " +
+            "WHERE gs.member.memberId = :memberId " +
+            "AND gs.dailyWord.gameDate BETWEEN :startDate AND :endDate " +
+            "ORDER BY gs.startedAt ASC")
+    List<GameSession> findByMemberIdAndDateRange(
+            @Param("memberId") Long memberId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
+
+    /**
+     * 회원의 특정 상태 게임 세션 조회 (최고 기록용)
+     */
+    @Query("SELECT gs FROM GameSession gs " +
+            "JOIN FETCH gs.dailyWord " +
+            "WHERE gs.member.memberId = :memberId AND gs.status = :status")
+    List<GameSession> findByMemberIdAndStatus(
+            @Param("memberId") Long memberId,
+            @Param("status") GameStatus status
+    );
+
+    /**
+     * 회원의 모든 게임 세션 시간순 조회 (연속 기록용)
+     */
+    @Query("SELECT gs FROM GameSession gs " +
+            "JOIN FETCH gs.dailyWord " +
+            "WHERE gs.member.memberId = :memberId " +
+            "ORDER BY gs.startedAt ASC")
+    List<GameSession> findByMemberIdOrderByStartedAt(@Param("memberId") Long memberId);
+
+    /**
+     * 회원의 모든 게임 세션 조회 (첫 시도 유사도용)
+     */
+    @Query("SELECT gs FROM GameSession gs " +
+            "JOIN FETCH gs.dailyWord " +
+            "WHERE gs.member.memberId = :memberId")
+    List<GameSession> findByMemberId(@Param("memberId") Long memberId);
 }
