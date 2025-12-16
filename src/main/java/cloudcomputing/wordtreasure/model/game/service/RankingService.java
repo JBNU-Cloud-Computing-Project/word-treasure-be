@@ -4,6 +4,7 @@ import cloudcomputing.wordtreasure.model.game.dto.RankingEntry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
@@ -29,10 +30,21 @@ public class RankingService {
     public void addToRanking(Long dailyWordId, Long memberId, double score) {
         String key = getRankingKey(dailyWordId);
 
-        redisTemplate.opsForZSet().add(key, memberId.toString(), score);
+        try {
+            redisTemplate.opsForZSet().add(key, memberId.toString(), score);
 
-        log.info("Redis 순위 등록 - dailyWordId: {}, memberId: {}, score: {}",
-                dailyWordId, memberId, score);
+            log.info("Redis 순위 등록 - dailyWordId: {}, memberId: {}, score: {}",
+                    dailyWordId, memberId, score);
+        } catch (DataAccessException e) {
+            // Redis 장애가 게임 완료(핵심 기능)를 막지 않도록 순위 기능만 degrade
+            log.warn("Redis 연결 실패로 순위 등록을 건너뜁니다. (ranking disabled temporarily) " +
+                            "dailyWordId: {}, memberId: {}, score: {}",
+                    dailyWordId, memberId, score, e);
+        } catch (RuntimeException e) {
+            // 예기치 못한 Redis/직렬화 관련 런타임 오류도 핵심 플로우에 영향 주지 않도록 처리
+            log.warn("Redis 순위 등록 중 런타임 오류로 순위 등록을 건너뜁니다. dailyWordId: {}, memberId: {}",
+                    dailyWordId, memberId, e);
+        }
     }
 
     /**
@@ -45,19 +57,27 @@ public class RankingService {
     public List<RankingEntry> getTopRankings(Long dailyWordId, int limit) {
         String key = getRankingKey(dailyWordId);
 
-        // 점수 오름차순으로 조회 (점수가 낮을수록 높은 순위)
-        Set<ZSetOperations.TypedTuple<Object>> tuples =
-                redisTemplate.opsForZSet().rangeWithScores(key, 0, limit - 1);
+        try {
+            // 점수 오름차순으로 조회 (점수가 낮을수록 높은 순위)
+            Set<ZSetOperations.TypedTuple<Object>> tuples =
+                    redisTemplate.opsForZSet().rangeWithScores(key, 0, limit - 1);
 
-        if (tuples == null || tuples.isEmpty()) {
+            if (tuples == null || tuples.isEmpty()) {
+                return List.of();
+            }
+
+            List<RankingEntry> rankings = getRankingEntries(tuples);
+
+            log.info("Redis 순위 조회 - dailyWordId: {}, count: {}", dailyWordId, rankings.size());
+
+            return rankings;
+        } catch (DataAccessException e) {
+            log.warn("Redis 연결 실패로 순위 조회를 빈 결과로 반환합니다. dailyWordId: {}", dailyWordId, e);
+            return List.of();
+        } catch (RuntimeException e) {
+            log.warn("Redis 순위 조회 중 런타임 오류로 빈 결과를 반환합니다. dailyWordId: {}", dailyWordId, e);
             return List.of();
         }
-
-        List<RankingEntry> rankings = getRankingEntries(tuples);
-
-        log.info("Redis 순위 조회 - dailyWordId: {}, count: {}", dailyWordId, rankings.size());
-
-        return rankings;
     }
 
     private @NonNull List<RankingEntry> getRankingEntries(Set<ZSetOperations.TypedTuple<Object>> tuples) {
@@ -89,14 +109,24 @@ public class RankingService {
     public Integer getMemberRank(Long dailyWordId, Long memberId) {
         String key = getRankingKey(dailyWordId);
 
-        Long rank = redisTemplate.opsForZSet().rank(key, memberId.toString());
+        try {
+            Long rank = redisTemplate.opsForZSet().rank(key, memberId.toString());
 
-        if (rank == null) {
+            if (rank == null) {
+                return null;
+            }
+
+            // Redis rank는 0-based이므로 1을 더함
+            return rank.intValue() + 1;
+        } catch (DataAccessException e) {
+            log.warn("Redis 연결 실패로 회원 순위를 null로 반환합니다. dailyWordId: {}, memberId: {}",
+                    dailyWordId, memberId, e);
+            return null;
+        } catch (RuntimeException e) {
+            log.warn("Redis 회원 순위 조회 중 런타임 오류로 null을 반환합니다. dailyWordId: {}, memberId: {}",
+                    dailyWordId, memberId, e);
             return null;
         }
-
-        // Redis rank는 0-based이므로 1을 더함
-        return rank.intValue() + 1;
     }
 
     /**
@@ -109,7 +139,17 @@ public class RankingService {
     public Double getMemberScore(Long dailyWordId, Long memberId) {
         String key = getRankingKey(dailyWordId);
 
-        return redisTemplate.opsForZSet().score(key, memberId.toString());
+        try {
+            return redisTemplate.opsForZSet().score(key, memberId.toString());
+        } catch (DataAccessException e) {
+            log.warn("Redis 연결 실패로 회원 점수를 null로 반환합니다. dailyWordId: {}, memberId: {}",
+                    dailyWordId, memberId, e);
+            return null;
+        } catch (RuntimeException e) {
+            log.warn("Redis 회원 점수 조회 중 런타임 오류로 null을 반환합니다. dailyWordId: {}, memberId: {}",
+                    dailyWordId, memberId, e);
+            return null;
+        }
     }
 
     /**
@@ -121,9 +161,16 @@ public class RankingService {
     public Long getTotalParticipants(Long dailyWordId) {
         String key = getRankingKey(dailyWordId);
 
-        Long count = redisTemplate.opsForZSet().size(key);
-
-        return count != null ? count : 0L;
+        try {
+            Long count = redisTemplate.opsForZSet().size(key);
+            return count != null ? count : 0L;
+        } catch (DataAccessException e) {
+            log.warn("Redis 연결 실패로 참여자 수를 0으로 반환합니다. dailyWordId: {}", dailyWordId, e);
+            return 0L;
+        } catch (RuntimeException e) {
+            log.warn("Redis 참여자 수 조회 중 런타임 오류로 0을 반환합니다. dailyWordId: {}", dailyWordId, e);
+            return 0L;
+        }
     }
 
     /**

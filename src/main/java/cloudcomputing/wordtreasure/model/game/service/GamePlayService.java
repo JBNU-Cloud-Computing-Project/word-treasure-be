@@ -175,8 +175,6 @@ public class GamePlayService {
         return new HintResult(savedHint.getId(), hintText, hintCost, member.getCurrentTokens());
     }
 
-    // ========== Private 메서드 ==========
-
     /**
      * 게임 세션 업데이트
      */

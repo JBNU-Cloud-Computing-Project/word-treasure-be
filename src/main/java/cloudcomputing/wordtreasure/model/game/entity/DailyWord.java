@@ -3,7 +3,7 @@ package cloudcomputing.wordtreasure.model.game.entity;
 import cloudcomputing.wordtreasure.common.audit.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -20,7 +20,6 @@ import java.time.LocalDate;
 )
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor
 public class DailyWord extends BaseTimeEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -47,11 +46,34 @@ public class DailyWord extends BaseTimeEntity {
     private Integer successfulAttempts = 0;
 
     @Column(precision = 5, scale = 2)
-    private BigDecimal successRate;
+    private BigDecimal successRate = BigDecimal.ZERO;
 
     @Column(nullable = false)
     private Integer totalTokenPool = 0;
 
+    @Builder
+    public DailyWord(String word, String description, Difficulty difficulty, LocalDate gameDate) {
+        this.word = word;
+        this.description = description;
+        this.difficulty = difficulty;
+        this.gameDate = gameDate;
+        this.totalParticipants = 0;
+        this.successfulAttempts = 0;
+        this.successRate = BigDecimal.ZERO;
+        this.totalTokenPool = 0;
+    }
+
+    /**
+     * WordPool로부터 DailyWord 생성
+     */
+    public static DailyWord fromWordPool(WordPool wordPool, LocalDate gameDate) {
+        return DailyWord.builder()
+                .word(wordPool.getWord())
+                .description(wordPool.getDescription())
+                .difficulty(wordPool.getDifficulty())
+                .gameDate(gameDate)
+                .build();
+    }
 
     public void incrementParticipants() {
         this.totalParticipants++;
