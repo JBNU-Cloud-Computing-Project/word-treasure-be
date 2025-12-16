@@ -69,15 +69,13 @@ public interface GameSessionRepository extends JpaRepository<GameSession, Long> 
             @Param("gameDate") LocalDate gameDate
     );
 
-    /**
-     * 일간 리더보드 조회 (시도횟수 + 완료시간 순)
-     */
     @Query("SELECT gs FROM GameSession gs " +
             "JOIN FETCH gs.member " +
             "JOIN FETCH gs.dailyWord " +
             "WHERE gs.dailyWord.gameDate = :date " +
-            "AND gs.status = 'SUCCESS' " +
-            "ORDER BY gs.attemptCount ASC, gs.completedAt ASC")
+            "ORDER BY gs.highestSimilarity DESC NULLS LAST, " +
+            "gs.attemptCount ASC, " +
+            "COALESCE(gs.completedAt, gs.updatedAt) ASC")
     Page<GameSession> findDailyLeaderboard(
             @Param("date") LocalDate date,
             Pageable pageable
@@ -89,8 +87,7 @@ public interface GameSessionRepository extends JpaRepository<GameSession, Long> 
     @Query("SELECT gs FROM GameSession gs " +
             "JOIN FETCH gs.member " +
             "WHERE gs.member.memberId = :memberId " +
-            "AND gs.dailyWord.gameDate = :date " +
-            "AND gs.status = 'SUCCESS'")
+            "AND gs.dailyWord.gameDate = :date")
     Optional<GameSession> findDailySessionByMemberId(
             @Param("memberId") Long memberId,
             @Param("date") LocalDate date
@@ -100,9 +97,8 @@ public interface GameSessionRepository extends JpaRepository<GameSession, Long> 
      * 일간 전체 성공자 수 조회
      */
     @Query("SELECT COUNT(gs) FROM GameSession gs " +
-            "WHERE gs.dailyWord.gameDate = :date " +
-            "AND gs.status = 'SUCCESS'")
-    long countDailySuccessful(@Param("date") LocalDate date);
+            "WHERE gs.dailyWord.gameDate = :date ")
+    long countDailyParticipants(@Param("date") LocalDate date);
 
     /**
      * 기간별 리더보드 조회 (누적 토큰 기준)
@@ -112,13 +108,18 @@ public interface GameSessionRepository extends JpaRepository<GameSession, Long> 
             "COUNT(gs) as totalGames, " +
             "SUM(CASE WHEN gs.status = 'SUCCESS' THEN 1 ELSE 0 END) as successfulGames, " +
             "SUM(gs.tokensEarned) as tokensEarned, " +
+            "SUM(gs.attemptCount) as totalAttempts, " +
             "AVG(CASE WHEN gs.status = 'SUCCESS' " +
             "  THEN timestampdiff(second, gs.startedAt, gs.completedAt) " +
             "  ELSE NULL END) as avgCompletionSeconds " +
             "FROM GameSession gs " +
             "WHERE gs.dailyWord.gameDate BETWEEN :startDate AND :endDate " +
             "GROUP BY gs.member.memberId, gs.member.nickName " +
-            "ORDER BY SUM(gs.tokensEarned) DESC",
+            "ORDER BY SUM(gs.tokensEarned) DESC, " +
+            "SUM(gs.attemptCount) ASC, " +
+            "AVG(CASE WHEN gs.status = 'SUCCESS' " +
+            "  THEN timestampdiff(second, gs.startedAt, gs.completedAt) " +
+            "  ELSE NULL END) ASC",
             countQuery = "SELECT COUNT(DISTINCT gs.member.memberId) " +
                     "FROM GameSession gs " +
                     "WHERE gs.dailyWord.gameDate BETWEEN :startDate AND :endDate"
@@ -137,6 +138,7 @@ public interface GameSessionRepository extends JpaRepository<GameSession, Long> 
             "COUNT(gs) as totalGames, " +
             "SUM(CASE WHEN gs.status = 'SUCCESS' THEN 1 ELSE 0 END) as successfulGames, " +
             "SUM(gs.tokensEarned) as tokensEarned, " +
+            "SUM(gs.attemptCount) as totalAttempts, " +
             "AVG(CASE WHEN gs.status = 'SUCCESS' " +
             "  THEN timestampdiff(second, gs.startedAt, gs.completedAt) " +
             "  ELSE NULL END) as avgCompletionSeconds " +
@@ -168,12 +170,17 @@ public interface GameSessionRepository extends JpaRepository<GameSession, Long> 
             "COUNT(gs) as totalGames, " +
             "SUM(CASE WHEN gs.status = 'SUCCESS' THEN 1 ELSE 0 END) as successfulGames, " +
             "SUM(gs.tokensEarned) as tokensEarned, " +
+            "SUM(gs.attemptCount) as totalAttempts, " +
             "AVG(CASE WHEN gs.status = 'SUCCESS' " +
             "  THEN timestampdiff(second, gs.startedAt, gs.completedAt) " +
             "  ELSE NULL END) as avgCompletionSeconds " +
             "FROM GameSession gs " +
             "GROUP BY gs.member.memberId, gs.member.nickName " +
-            "ORDER BY tokensEarned DESC")
+            "ORDER BY SUM(gs.tokensEarned) DESC, " +
+            "SUM(gs.attemptCount) ASC, " +
+            "AVG(CASE WHEN gs.status = 'SUCCESS' " +
+            "  THEN timestampdiff(second, gs.startedAt, gs.completedAt) " +
+            "  ELSE NULL END) ASC")
     Page<LeaderboardProjection> findAllTimeLeaderboard(Pageable pageable);
 
     /**
@@ -184,6 +191,7 @@ public interface GameSessionRepository extends JpaRepository<GameSession, Long> 
             "COUNT(gs) as totalGames, " +
             "SUM(CASE WHEN gs.status = 'SUCCESS' THEN 1 ELSE 0 END) as successfulGames, " +
             "SUM(gs.tokensEarned) as tokensEarned, " +
+            "SUM(gs.attemptCount) as totalAttempts, " +
             "AVG(CASE WHEN gs.status = 'SUCCESS' " +
             "  THEN timestampdiff(second, gs.startedAt, gs.completedAt) " +
             "  ELSE NULL END) as avgCompletionSeconds " +

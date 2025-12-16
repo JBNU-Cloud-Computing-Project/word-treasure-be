@@ -54,7 +54,9 @@ public class TemporarySimilarityCalculator implements SimilarityCalculator {
     public String generateHint(String userInput, String answer, BigDecimal similarity) {
         double score = similarity.doubleValue();
 
-        if (score >= 95.0) {
+        if (score == 100.0) {
+            return "정답입니다!";
+        } else if (score >= 95.0) {
             return "거의 정답이에요! 더 정확한 표현이 있어요.";
         } else if (score >= 80.0) {
             return "아주 가까워요! 조금만 더 생각해보세요.";

@@ -11,5 +11,7 @@ public interface LeaderboardProjection {
 
     Long getTokensEarned();
 
+    Long getTotalAttempts();
+
     Double getAvgCompletionSeconds();  // 평균 완료 시간 (초)
 }

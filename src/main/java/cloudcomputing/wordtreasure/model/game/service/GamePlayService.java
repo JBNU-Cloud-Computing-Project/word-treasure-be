@@ -113,6 +113,18 @@ public class GamePlayService {
 
         updateSession(session, similarity, attemptCost);
 
+        // 실시간 순위 업데이트 (매 시도마다)
+        try {
+            rankingService.updateRanking(
+                    session.getDailyWord().getId(),
+                    session.getMember().getMemberId(),
+                    session.getHighestSimilarity().doubleValue(),
+                    session.getAttemptCount()
+            );
+        } catch (Exception e) {
+            // 순위 업데이트 실패가 게임 진행을 막지 않도록
+            log.warn("실시간 순위 업데이트 실패 - gameSessionId: {}", gameSessionId, e);
+        }
         boolean isCorrect = similarity.compareTo(BigDecimal.valueOf(100)) == 0;
 
         if (isCorrect) {
@@ -217,6 +229,7 @@ public class GamePlayService {
      */
     private void completeGame(GameSession session, boolean isSuccess) {
         try {
+            // 1. 게임 상태 업데이트
             var statusField = GameSession.class.getDeclaredField("status");
             statusField.setAccessible(true);
             statusField.set(session, isSuccess ? GameStatus.SUCCESS : GameStatus.FAIL);
@@ -226,25 +239,22 @@ public class GamePlayService {
             completedAtField.set(session, LocalDateTime.now());
 
             if (isSuccess) {
+                // 2-A. 성공 시: 최종 점수 계산 및 순위 확정
                 session.getDailyWord().recordSuccess();
 
-                long completionSeconds = java.time.Duration.between(
-                        session.getStartedAt(),
-                        LocalDateTime.now()
-                ).getSeconds();
-
-                double rankingScore = rankingService.calculateRankingScore(
-                        session.getAttemptCount(),
-                        completionSeconds
+                double finalScore = rankingService.calculateRankingScore(
+                        session.getHighestSimilarity().doubleValue(),
+                        session.getAttemptCount()
                 );
 
+                //Redis에 최종 점수 등록 (100% 유사율로 재등록)
                 rankingService.addToRanking(
                         session.getDailyWord().getId(),
                         session.getMember().getMemberId(),
-                        rankingScore
+                        finalScore
                 );
 
-                // Redis에서 순위 조회
+                // 3. Redis에서 최종 순위 조회
                 Integer rank = rankingService.getMemberRank(
                         session.getDailyWord().getId(),
                         session.getMember().getMemberId()
@@ -256,24 +266,49 @@ public class GamePlayService {
                     finalRankField.set(session, rank);
                 }
 
-                // 보상 토큰 지급
+                // 4. 보상 토큰 계산 및 지급
                 int reward = gameConfigService.getIntValue(GameConfigKey.RANK_DEFAULT_REWARD);
+
                 tokenService.addTokens(
-                        session.getMember().getMemberId(), reward,
-                        TransactionType.GAME_REWARD, "게임 정답 보상", session
+                        session.getMember().getMemberId(),
+                        reward,
+                        TransactionType.GAME_REWARD,
+                        "게임 정답 보상",
+                        session
                 );
 
                 var tokensEarnedField = GameSession.class.getDeclaredField("tokensEarned");
                 tokensEarnedField.setAccessible(true);
                 tokensEarnedField.set(session, reward);
 
+                log.info("게임 성공 완료 - gameSessionId: {}, rank: {}, reward: {}, finalScore: {}",
+                        session.getId(), rank, reward, finalScore);
+
             } else {
+                // 2-B. 실패 시: 최종 상태를 Redis에 반영
                 session.getDailyWord().recordFailure();
+
+                // 실패해도 현재 최고 유사율로 최종 점수 등록
+                double finalScore = rankingService.calculateRankingScore(
+                        session.getHighestSimilarity() != null
+                                ? session.getHighestSimilarity().doubleValue()
+                                : 0.0,
+                        session.getAttemptCount()
+                );
+
+                // Redis에 최종 점수 등록
+                rankingService.addToRanking(
+                        session.getDailyWord().getId(),
+                        session.getMember().getMemberId(),
+                        finalScore
+                );
+
+                log.info("게임 실패 완료 - gameSessionId: {}, highestSimilarity: {}, attempts: {}, finalScore: {}",
+                        session.getId(),
+                        session.getHighestSimilarity(),
+                        session.getAttemptCount(),
+                        finalScore);
             }
-
-            log.info("게임 완료 - gameSessionId: {}, status: {}, rank: {}",
-                    session.getId(), session.getStatus(), session.getFinalRank());
-
         } catch (Exception e) {
             log.error("게임 완료 처리 실패", e);
             throw new RuntimeException("게임 완료 처리 중 오류 발생", e);

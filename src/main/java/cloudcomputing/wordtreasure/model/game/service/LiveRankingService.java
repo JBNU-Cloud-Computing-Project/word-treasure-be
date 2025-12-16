@@ -103,17 +103,21 @@ public class LiveRankingService {
         GameSession session = sessionOpt.get();
         Member member = session.getMember();
 
-        // 2. 게임 진행 중이면 순위 없음
-        if (!session.getStatus().isSuccess()) {
+        // 2. Redis에서 현재 순위 조회 (진행 중이든 완료든 상관없이)
+        Integer rank = rankingService.getMemberRank(dailyWordId, memberId);
+
+        // 3. 순위 정보가 없으면 null 반환 (Redis 미등록 상태)
+        if (rank == null) {
+            log.warn("Redis에 순위 정보 없음 - memberId: {}, dailyWordId: {}",
+                    memberId, dailyWordId);
+
+            // 시도는 했지만 Redis에 등록 안 된 경우 (Redis 장애 등)
             return Optional.of(new MyRankingInfo(
                     null,
                     member.getNickName(),
-                    session.getStatus().getDescription()
+                    "순위 집계 중"
             ));
         }
-
-        // 3. Redis에서 순위 조회
-        Integer rank = rankingService.getMemberRank(dailyWordId, memberId);
 
         return Optional.of(new MyRankingInfo(
                 rank,

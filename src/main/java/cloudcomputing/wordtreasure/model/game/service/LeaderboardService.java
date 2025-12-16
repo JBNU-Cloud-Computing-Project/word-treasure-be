@@ -14,8 +14,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,16 +44,29 @@ public class LeaderboardService {
 
         return sessionPage.getContent().stream()
                 .map(session -> {
-                    String completionTime = formatDuration(
-                            Duration.between(session.getStartedAt(), session.getCompletedAt())
-                    );
+                    String completionTime;
+                    if (session.getCompletedAt() != null) {
+                        completionTime = formatDuration(
+                                Duration.between(session.getStartedAt(), session.getCompletedAt())
+                        );
+                    } else {
+                        // 미완료자는 진행 시간 표시
+                        completionTime = formatDuration(
+                                Duration.between(session.getStartedAt(), session.getUpdatedAt())
+                        );
+                    }
+
+                    // ✅ 최고 유사율 사용 (BigDecimal → double 변환)
+                    double finalScore = session.getHighestSimilarity() != null
+                            ? session.getHighestSimilarity().doubleValue()
+                            : 0.0;
 
                     return LeaderboardEntry.forDaily(
                             rank.getAndIncrement(),
                             session.getMember().getNickName(),
                             session.getAttemptCount(),
                             completionTime,
-                            100.0,  // 성공한 경우 항상 100%
+                            finalScore,
                             session.getTokensEarned()
                     );
                 })
@@ -131,28 +146,63 @@ public class LeaderboardService {
 
         GameSession session = sessionOpt.get();
 
-        // 내 순위 계산 - 나보다 앞선 사람 수 + 1
         long betterCount = gameSessionRepository.findDailyLeaderboard(date, Pageable.unpaged())
                 .stream()
-                .filter(gs ->
-                        gs.getAttemptCount() < session.getAttemptCount() ||
-                                (gs.getAttemptCount().equals(session.getAttemptCount()) &&
-                                        gs.getCompletedAt().isBefore(session.getCompletedAt()))
-                )
+                .filter(gs -> {
+                    BigDecimal mySimil = session.getHighestSimilarity();
+                    BigDecimal otherSimil = gs.getHighestSimilarity();
+
+                    // null 처리
+                    if (mySimil == null) mySimil = BigDecimal.ZERO;
+                    if (otherSimil == null) otherSimil = BigDecimal.ZERO;
+
+                    // 1순위: 유사율 비교
+                    int similCompare = otherSimil.compareTo(mySimil);
+                    if (similCompare != 0) {
+                        return similCompare > 0;  // 상대방 유사율이 더 높으면 나보다 앞섬
+                    }
+
+                    // 2순위: 시도횟수 비교 (적을수록 좋음)
+                    int attemptCompare = Integer.compare(gs.getAttemptCount(), session.getAttemptCount());
+                    if (attemptCompare != 0) {
+                        return attemptCompare < 0;  // 상대방 시도횟수가 적으면 나보다 앞섬
+                    }
+
+                    // 3순위: 완료시간 비교
+                    LocalDateTime myTime = session.getCompletedAt() != null
+                            ? session.getCompletedAt()
+                            : session.getUpdatedAt();
+                    LocalDateTime otherTime = gs.getCompletedAt() != null
+                            ? gs.getCompletedAt()
+                            : gs.getUpdatedAt();
+
+                    return otherTime.isBefore(myTime);  // 상대방이 더 빠르면 나보다 앞섬
+                })
                 .count();
 
         int myRank = (int) betterCount + 1;
 
-        String completionTime = formatDuration(
-                Duration.between(session.getStartedAt(), session.getCompletedAt())
-        );
+        String completionTime;
+        if (session.getCompletedAt() != null) {
+            completionTime = formatDuration(
+                    Duration.between(session.getStartedAt(), session.getCompletedAt())
+            );
+        } else {
+            completionTime = formatDuration(
+                    Duration.between(session.getStartedAt(), session.getUpdatedAt())
+            );
+        }
+
+        double finalScore = session.getHighestSimilarity() != null
+                ? session.getHighestSimilarity().doubleValue()
+                : 0.0;
 
         return MyLeaderboardRanking.forDaily(
                 myRank,
                 session.getMember().getNickName(),
                 session.getAttemptCount(),
                 completionTime,
-                100.0,
+                finalScore,
                 session.getTokensEarned()
         );
     }
@@ -192,10 +242,31 @@ public class LeaderboardService {
 
         LeaderboardProjection stats = statsOpt.get();
 
-        // 내 순위 계산 - 나보다 토큰이 많은 사람 수 + 1
+        // 내 순위 계산
         long betterCount = gameSessionRepository.findAllTimeLeaderboard(Pageable.unpaged())
                 .stream()
-                .filter(proj -> proj.getTokensEarned() > stats.getTokensEarned())
+                .filter(proj -> {
+                    // 1순위: 토큰 비교
+                    int tokenCompare = Long.compare(proj.getTokensEarned(), stats.getTokensEarned());
+                    if (tokenCompare != 0) {
+                        return tokenCompare > 0;
+                    }
+
+                    // 2순위: 총 시도횟수 비교
+                    int attemptCompare = Long.compare(proj.getTotalAttempts(), stats.getTotalAttempts());
+                    if (attemptCompare != 0) {
+                        return attemptCompare < 0;
+                    }
+
+                    // 3순위: 평균 완료시간 비교
+                    Double myAvg = stats.getAvgCompletionSeconds();
+                    Double otherAvg = proj.getAvgCompletionSeconds();
+
+                    if (myAvg == null) return true;
+                    if (otherAvg == null) return false;
+
+                    return otherAvg < myAvg;
+                })
                 .count();
 
         int myRank = (int) betterCount + 1;
@@ -228,14 +299,12 @@ public class LeaderboardService {
             return gameSessionRepository.countAllParticipants();
         } else if (startDate.equals(endDate)) {
             // 일간
-            return gameSessionRepository.countDailySuccessful(startDate);
+            return gameSessionRepository.countDailyParticipants(startDate);
         } else {
             // 기간별
             return gameSessionRepository.countPeriodParticipants(startDate, endDate);
         }
     }
-
-    // ========== Private Helper Methods ==========
 
     /**
      * 기간별 리더보드 조회 (공통 로직)
@@ -285,10 +354,31 @@ public class LeaderboardService {
 
         LeaderboardProjection stats = statsOpt.get();
 
-        // 내 순위 계산 - 나보다 토큰이 많은 사람 수 + 1
+        // 내 순위 계산
         long betterCount = gameSessionRepository.findPeriodLeaderboard(startDate, endDate, Pageable.unpaged())
                 .stream()
-                .filter(proj -> proj.getTokensEarned() > stats.getTokensEarned())
+                .filter(proj -> {
+                    // 1순위: 토큰 비교 (많을수록 좋음)
+                    int tokenCompare = Long.compare(proj.getTokensEarned(), stats.getTokensEarned());
+                    if (tokenCompare != 0) {
+                        return tokenCompare > 0;  // 상대방 토큰이 더 많으면 나보다 앞섬
+                    }
+
+                    // 2순위: 총 시도횟수 비교 (적을수록 좋음)
+                    int attemptCompare = Long.compare(proj.getTotalAttempts(), stats.getTotalAttempts());
+                    if (attemptCompare != 0) {
+                        return attemptCompare < 0;  // 상대방 시도가 적으면 나보다 앞섬
+                    }
+
+                    // 3순위: 평균 완료시간 비교 (빠를수록 좋음)
+                    Double myAvg = stats.getAvgCompletionSeconds();
+                    Double otherAvg = proj.getAvgCompletionSeconds();
+
+                    if (myAvg == null) return true;  // 내가 성공 기록 없으면 뒤로
+                    if (otherAvg == null) return false;  // 상대방이 성공 기록 없으면 내가 앞섬
+
+                    return otherAvg < myAvg;  // 상대방이 더 빠르면 나보다 앞섬
+                })
                 .count();
 
         int myRank = (int) betterCount + 1;
