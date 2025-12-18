@@ -308,4 +308,18 @@ public interface GameSessionRepository extends JpaRepository<GameSession, Long> 
             @Param("gameDate") LocalDate gameDate,
             @Param("status") GameStatus status
     );
+
+    /**
+     * 특정 날짜의 성공한 게임 세션 조회 (순위순)
+     * - 토큰 풀 배분용
+     * - finalRank가 낮은 순서대로 정렬 (1위, 2위, 3위...)
+     */
+    @Query("SELECT gs FROM GameSession gs " +
+            "JOIN FETCH gs.member " +
+            "JOIN FETCH gs.dailyWord " +
+            "WHERE gs.dailyWord.gameDate = :date " +
+            "AND gs.status = 'SUCCESS' " +
+            "AND gs.finalRank IS NOT NULL " +
+            "ORDER BY gs.finalRank ASC")
+    List<GameSession> findSuccessSessionsByDateOrderByRank(@Param("date") LocalDate date);
 }

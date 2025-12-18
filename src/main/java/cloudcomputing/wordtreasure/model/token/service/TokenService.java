@@ -155,8 +155,6 @@ public class TokenService {
         }
     }
 
-    // ========== Private 검증 메서드 ==========
-
     private Member findMemberWithLock(Long memberId) {
         return memberRepository.findByIdWithLock(memberId)
                 .orElseThrow(() -> new IllegalArgumentException(
