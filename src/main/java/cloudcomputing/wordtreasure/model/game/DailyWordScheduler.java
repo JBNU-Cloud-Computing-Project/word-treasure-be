@@ -20,7 +20,7 @@ public class DailyWordScheduler {
      * cron 표현식: "초 분 시 일 월 요일"
      * "0 0 0 * * *" = 매일 00:00:00
      */
-    @Scheduled(cron = "0 0 0 * * *")
+    @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Seoul")
     public void publishDailyWord() {
         log.info("╔════════════════════════════════════════╗");
         log.info("║  일일 단어 자동 출제 스케줄러 실행    ║");
