@@ -1,11 +1,10 @@
 package cloudcomputing.wordtreasure.model.game.service;
 
-import cloudcomputing.wordtreasure.model.game.dto.CurrentGameInfo;
-import cloudcomputing.wordtreasure.model.game.dto.RecentGameInfo;
-import cloudcomputing.wordtreasure.model.game.dto.UserStatisticsInfo;
-import cloudcomputing.wordtreasure.model.game.entity.DailyWord;
-import cloudcomputing.wordtreasure.model.game.entity.GameSession;
+import cloudcomputing.wordtreasure.model.game.dto.*;
+import cloudcomputing.wordtreasure.model.game.entity.*;
+import cloudcomputing.wordtreasure.model.game.repository.AttemptRepository;
 import cloudcomputing.wordtreasure.model.game.repository.DailyWordRepository;
+import cloudcomputing.wordtreasure.model.game.repository.ExtraHintRepository;
 import cloudcomputing.wordtreasure.model.game.repository.GameSessionRepository;
 import cloudcomputing.wordtreasure.model.member.entity.Member;
 import cloudcomputing.wordtreasure.model.member.entity.MemberStatistics;
@@ -32,6 +31,9 @@ public class GameDashboardService {
     private final MemberStatisticsRepository statisticsRepository;
     private final GameSessionRepository gameSessionRepository;
     private final DailyWordRepository dailyWordRepository;
+    private final AttemptRepository attemptRepository;
+    private final ExtraHintRepository extraHintRepository;
+    private final GameConfigService gameConfigService;
 
     /**
      * 현재 게임 상태 조회
@@ -50,17 +52,30 @@ public class GameDashboardService {
         // 3. 남은 시간 계산 (자정까지)
         String remainingTime = calculateRemainingTime();
 
-        // 4. 게임 시작 여부
-        boolean hasStarted = sessionOpt.isPresent();
+        // 4. 게임 세션이 없으면 (게임 시작 전)
+        if (sessionOpt.isEmpty()) {
+            return CurrentGameInfo.withoutProgress(
+                    todayWord.getId(),
+                    todayWord.getGameDate(),
+                    remainingTime,
+                    todayWord.getDifficulty()
+            );
+        }
 
-        return new CurrentGameInfo(
+        // 5. 게임 세션이 있으면 (게임 진행 중 or 완료)
+        GameSession session = sessionOpt.get();
+
+        // 6. 진행 상태 조회
+        GameProgressDto progress = getGameProgress(session);
+
+        return CurrentGameInfo.withProgress(
                 todayWord.getId(),
                 todayWord.getGameDate(),
-                sessionOpt.map(GameSession::getStatus).orElse(null),
+                session.getStatus(),
                 remainingTime,
                 todayWord.getDifficulty(),
-                hasStarted,
-                sessionOpt.map(GameSession::getId).orElse(null)
+                session.getId(),
+                progress
         );
     }
 
@@ -125,6 +140,49 @@ public class GameDashboardService {
                 null, null,
                 0, 0,
                 null
+        );
+    }
+
+    /**
+     * 게임 진행 상태 조회
+     */
+    private GameProgressDto getGameProgress(GameSession session) {
+        Long gameSessionId = session.getId();
+
+        log.info("게임 진행 상태 조회 - gameSessionId: {}", gameSessionId);
+
+        // 1. 모든 시도 기록 조회
+        List<Attempt> attempts = attemptRepository
+                .findByGameSessionIdOrderByAttemptNumber(gameSessionId);
+
+        // 2. 모든 힌트 기록 조회
+        List<ExtraHint> hints = extraHintRepository
+                .findByGameSessionIdOrderByCreatedAt(gameSessionId);
+
+        // 3. 시도와 힌트의 총 토큰 사용량 계산
+        int totalTokensUsed = session.getTokensSpent();
+
+        // 4. 최대 시도 횟수
+        int maxAttempts = gameConfigService.getIntValue(GameConfigKey.MAX_ATTEMPTS);
+
+        // 5. DTO 변환
+        List<AttemptDto> attemptDtos = attempts.stream()
+                .map(AttemptDto::from)
+                .toList();
+
+        List<HintDto> hintDtos = hints.stream()
+                .map(HintDto::from)
+                .toList();
+
+        log.info("진행 상태 조회 완료 - attempts: {}, hints: {}, tokensUsed: {}",
+                attemptDtos.size(), hintDtos.size(), totalTokensUsed);
+
+        return GameProgressDto.from(
+                attemptDtos,
+                hintDtos,
+                maxAttempts,
+                session.getAttemptCount(),
+                totalTokensUsed
         );
     }
 }
