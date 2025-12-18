@@ -2,13 +2,17 @@ package cloudcomputing.wordtreasure.model.game.repository;
 
 import cloudcomputing.wordtreasure.model.game.entity.GameSession;
 import cloudcomputing.wordtreasure.model.game.entity.GameStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,6 +22,20 @@ public interface GameSessionRepository extends JpaRepository<GameSession, Long> 
      */
     @Query("SELECT gs FROM GameSession gs WHERE gs.member.memberId = :memberId AND gs.dailyWord.id = :dailyWordId")
     Optional<GameSession> findByMemberIdAndDailyWordId(
+            @Param("memberId") Long memberId,
+            @Param("dailyWordId") Long dailyWordId
+    );
+
+    /**
+     * Pessimistic Write Lock을 사용한 조회
+     * - 다른 트랜잭션이 동일한 레코드를 수정하지 못하도록 차단
+     * - SELECT ... FOR UPDATE 쿼리 실행
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT gs FROM GameSession gs " +
+            "WHERE gs.member.memberId = :memberId " +
+            "AND gs.dailyWord.id = :dailyWordId")
+    Optional<GameSession> findByMemberIdAndDailyWordIdWithLock(
             @Param("memberId") Long memberId,
             @Param("dailyWordId") Long dailyWordId
     );
@@ -255,4 +273,39 @@ public interface GameSessionRepository extends JpaRepository<GameSession, Long> 
             "JOIN FETCH gs.dailyWord " +
             "WHERE gs.member.memberId = :memberId")
     List<GameSession> findByMemberId(@Param("memberId") Long memberId);
+
+    /**
+     * 자정 정리용: 특정 gameDate의 PLAYING 세션을 일괄 만료 처리
+     * - 통계/리포트에서 PLAYING 잔존 방지
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE GameSession gs
+               SET gs.status = :toStatus,
+                   gs.completedAt = :completedAt
+             WHERE gs.status = :fromStatus
+               AND gs.dailyWord.gameDate = :gameDate
+            """)
+    int expireSessionsByGameDateAndStatus(
+            @Param("gameDate") LocalDate gameDate,
+            @Param("fromStatus") GameStatus fromStatus,
+            @Param("toStatus") GameStatus toStatus,
+            @Param("completedAt") LocalDateTime completedAt
+    );
+
+    /**
+     * 자정 정리용: 특정 날짜(gameDate)의 PLAYING 세션 목록 조회 (연관 엔티티 fetch)
+     */
+    @Query("""
+            SELECT gs
+              FROM GameSession gs
+              JOIN FETCH gs.member
+              JOIN FETCH gs.dailyWord
+             WHERE gs.dailyWord.gameDate = :gameDate
+               AND gs.status = :status
+            """)
+    List<GameSession> findByGameDateAndStatusWithFetch(
+            @Param("gameDate") LocalDate gameDate,
+            @Param("status") GameStatus status
+    );
 }

@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -35,11 +36,30 @@ public class GamePlayService {
     private final ExtraHintRepository extraHintRepository;
     private final RankingService rankingService;
 
+    // ⭐ 동시성 제어를 위한 Lock Map
+    private final ConcurrentHashMap<String, Object> gameLocks = new ConcurrentHashMap<>();
+
     /**
-     * 게임 시작
+     * 게임 시작 - 동시성 제어
      */
     @Transactional
     public GameStartResult startGame(Long memberId, Long dailyWordId) {
+        // 1. 회원별 + 단어별 고유 키 생성
+        String lockKey = String.format("game_start_%d_%d", memberId, dailyWordId);
+
+        // 2. 해당 키에 대한 Lock 객체 획득 (없으면 생성)
+        Object lock = gameLocks.computeIfAbsent(lockKey, k -> new Object());
+
+        // 3. synchronized 블록으로 동시성 제어
+        synchronized (lock) {
+            return startGameInternal(memberId, dailyWordId);
+        }
+    }
+
+    /**
+     * 실제 게임 시작 로직 (동기화 블록 내에서 실행)
+     */
+    private GameStartResult startGameInternal(Long memberId, Long dailyWordId) {
         log.info("게임 시작 요청 - memberId: {}, dailyWordId: {}", memberId, dailyWordId);
 
         Member member = memberRepository.findById(memberId)
@@ -52,10 +72,24 @@ public class GamePlayService {
             throw new IllegalStateException("오늘의 단어가 아닙니다.");
         }
 
-        if (gameSessionRepository.findByMemberIdAndDailyWordId(memberId, dailyWordId).isPresent()) {
-            throw new IllegalStateException("이미 오늘의 게임에 참여했습니다.");
+        // 기존 세션 조회 (synchronized가 보호하므로 일반 조회로 충분)
+        var existing = gameSessionRepository.findByMemberIdAndDailyWordId(memberId, dailyWordId);
+
+        if (existing.isPresent()) {
+            GameSession s = existing.get();
+            log.info("이미 게임 세션이 존재하여 기존 세션 반환 - gameSessionId: {}", s.getId());
+
+            int maxAttempts = gameConfigService.getIntValue(GameConfigKey.MAX_ATTEMPTS);
+            int attemptCost = gameConfigService.getIntValue(GameConfigKey.ATTEMPT_COST_TOKENS);
+            int hintCost = gameConfigService.getIntValue(GameConfigKey.HINT_COST_TOKENS);
+
+            return new GameStartResult(
+                    s.getId(), dailyWordId, dailyWord.getGameDate(),
+                    maxAttempts, attemptCost, hintCost, member.getCurrentTokens(), s.getStartedAt()
+            );
         }
 
+        // 새 세션 생성
         GameSession session = new GameSession(
                 null, member, dailyWord, GameStatus.PLAYING,
                 0, BigDecimal.ZERO, LocalDateTime.now(), null, null, 0, 0, null, null
@@ -89,6 +123,8 @@ public class GamePlayService {
         if (session.getStatus() != GameStatus.PLAYING) {
             throw new IllegalStateException("이미 종료된 게임입니다.");
         }
+
+        validateNotExpired(session);
 
         int maxAttempts = gameConfigService.getIntValue(GameConfigKey.MAX_ATTEMPTS);
         if (session.getAttemptCount() >= maxAttempts) {
@@ -162,6 +198,8 @@ public class GamePlayService {
         if (session.getStatus() != GameStatus.PLAYING) {
             throw new IllegalStateException("이미 종료된 게임입니다.");
         }
+
+        validateNotExpired(session);
 
         int hintCost = gameConfigService.getIntValue(GameConfigKey.HINT_COST_TOKENS);
 
@@ -337,9 +375,6 @@ public class GamePlayService {
 
     /**
      * 추가 힌트 생성
-     * <p>
-     * 현재: 간단한 힌트 생성 로직
-     * 향후: 더 정교한 힌트 생성 로직으로 교체 가능
      */
     private String generateExtraHint(GameSession session) {
         String answer = session.getDailyWord().getWord();
@@ -356,6 +391,18 @@ public class GamePlayService {
             String lastChar = answer.substring(answer.length() - 1);
             return String.format("첫 글자는 '%s'이고, 마지막 글자는 '%s'입니다.",
                     firstChar, lastChar);
+        }
+    }
+
+    /**
+     * 자정 기준 만료 체크
+     */
+    private void validateNotExpired(GameSession session) {
+        LocalDate today = LocalDate.now();
+        LocalDate sessionDate = session.getDailyWord().getGameDate();
+
+        if (!today.equals(sessionDate)) {
+            throw new IllegalStateException("게임이 만료되었습니다. (자정 이후에는 진행할 수 없습니다.)");
         }
     }
 }
