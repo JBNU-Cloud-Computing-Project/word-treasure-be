@@ -4,11 +4,14 @@ import cloudcomputing.wordtreasure.model.game.dto.AttemptResult;
 import cloudcomputing.wordtreasure.model.game.dto.GameStartResult;
 import cloudcomputing.wordtreasure.model.game.dto.HintResult;
 import cloudcomputing.wordtreasure.model.game.entity.*;
+import cloudcomputing.wordtreasure.model.game.repository.AttemptRepository;
 import cloudcomputing.wordtreasure.model.game.repository.DailyWordRepository;
 import cloudcomputing.wordtreasure.model.game.repository.ExtraHintRepository;
 import cloudcomputing.wordtreasure.model.game.repository.GameSessionRepository;
 import cloudcomputing.wordtreasure.model.member.entity.Member;
+import cloudcomputing.wordtreasure.model.member.entity.MemberStatistics;
 import cloudcomputing.wordtreasure.model.member.repositroy.MemberRepository;
+import cloudcomputing.wordtreasure.model.member.repositroy.MemberStatisticsRepository;
 import cloudcomputing.wordtreasure.model.token.entity.TransactionType;
 import cloudcomputing.wordtreasure.model.token.service.TokenService;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +20,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,14 +35,26 @@ public class GamePlayService {
     private final MemberRepository memberRepository;
     private final DailyWordRepository dailyWordRepository;
     private final GameSessionRepository gameSessionRepository;
+    private final AttemptRepository attemptRepository;
     private final GameConfigService gameConfigService;
     private final TokenService tokenService;
     private final SimilarityCalculator similarityCalculator;
     private final ExtraHintRepository extraHintRepository;
     private final RankingService rankingService;
+    private final MemberStatisticsRepository memberStatisticsRepository;
 
-    // ⭐ 동시성 제어를 위한 Lock Map
+    // 동시성 제어를 위한 Lock Map
     private final ConcurrentHashMap<String, Object> gameLocks = new ConcurrentHashMap<>();
+
+    private static void setField(Object target, String fieldName, Object value) {
+        try {
+            var f = target.getClass().getDeclaredField(fieldName);
+            f.setAccessible(true);
+            f.set(target, value);
+        } catch (Exception e) {
+            throw new RuntimeException("필드 설정 실패: " + fieldName, e);
+        }
+    }
 
     /**
      * 게임 시작 - 동시성 제어
@@ -146,7 +163,10 @@ public class GamePlayService {
                 null, session, session.getAttemptCount() + 1,
                 userInput, similarity, hint, attemptCost, LocalDateTime.now()
         );
+        // 시도 저장
+        Attempt savedAttempt = attemptRepository.save(attempt);
 
+        // 세션 상태 갱신 (시도 수, 최고 유사도, 토큰 소비 합계)
         updateSession(session, similarity, attemptCost);
 
         // 실시간 순위 업데이트 (매 시도마다)
@@ -172,11 +192,11 @@ public class GamePlayService {
         Member member = memberRepository.findById(session.getMember().getMemberId())
                 .orElseThrow(() -> new IllegalArgumentException("회원을 찾을 수 없습니다."));
 
-        log.info("시도 제출 완료 - attemptNumber: {}, similarity: {}, isCorrect: {}",
-                attempt.getAttemptNumber(), similarity, isCorrect);
+        log.info("시도 제출 완료 - attemptId: {}, attemptNumber: {}, similarity: {}, isCorrect: {}",
+                savedAttempt.getId(), savedAttempt.getAttemptNumber(), similarity, isCorrect);
 
         return new AttemptResult(
-                attempt.getId(), attempt.getAttemptNumber(), userInput, similarity,
+                savedAttempt.getId(), savedAttempt.getAttemptNumber(), userInput, similarity,
                 isCorrect, hint, attemptCost, member.getCurrentTokens(),
                 session.getAttemptCount(), session.getHighestSimilarity(),
                 isCorrect ? session.getFinalRank() : null,
@@ -347,9 +367,109 @@ public class GamePlayService {
                         session.getAttemptCount(),
                         finalScore);
             }
+
+            // 5. 회원 통계 업데이트 (성공/실패 공통)
+            updateMemberStatistics(session, isSuccess);
         } catch (Exception e) {
             log.error("게임 완료 처리 실패", e);
             throw new RuntimeException("게임 완료 처리 중 오류 발생", e);
+        }
+    }
+
+    /**
+     * 회원 통계 갱신 (없으면 생성)
+     */
+    private void updateMemberStatistics(GameSession session, boolean isSuccess) {
+        Long memberId = session.getMember().getMemberId();
+        LocalDate today = session.getDailyWord().getGameDate();
+
+        MemberStatistics stats = memberStatisticsRepository
+                .findByMemberId(memberId)
+                .orElseGet(() -> {
+                    // 기본값으로 생성
+                    // 주의: @MapsId 구조에서 신규 저장 시 id를 null로 두어 persist 경로를 타도록 해야 함
+                    MemberStatistics created = new MemberStatistics(
+                            null, // id는 null → persist
+                            session.getMember(),
+                            0, 0, 0,
+                            BigDecimal.ZERO,
+                            BigDecimal.ZERO,
+                            null, null,
+                            0, 0,
+                            null
+                    );
+                    return memberStatisticsRepository.save(created);
+                });
+
+        try {
+            // 누적 게임 수
+            int prevTotal = stats.getTotalGames();
+            int newTotal = prevTotal + 1;
+
+            // 성공/실패 누적
+            int prevSuccess = stats.getSuccessfulGames();
+            int prevFail = stats.getFailedGames();
+            int newSuccess = prevSuccess + (isSuccess ? 1 : 0);
+            int newFail = prevFail + (isSuccess ? 0 : 1);
+
+            // 평균 시도 수(averageScore 필드를 평균 시도로 사용)
+            int attempts = session.getAttemptCount();
+            BigDecimal prevAvg = stats.getAverageScore() == null ? BigDecimal.ZERO : stats.getAverageScore();
+            BigDecimal totalAttemptsSoFar = prevAvg.multiply(BigDecimal.valueOf(prevTotal));
+            BigDecimal newAvg = totalAttemptsSoFar
+                    .add(BigDecimal.valueOf(attempts))
+                    .divide(BigDecimal.valueOf(newTotal), 2, RoundingMode.HALF_UP);
+
+            // 성공률 (0~100)
+            BigDecimal successRate = BigDecimal.valueOf(newSuccess)
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(BigDecimal.valueOf(newTotal), 2, RoundingMode.HALF_UP);
+
+            // 최고 순위(bestRank): 낮을수록 좋음
+            Integer bestRank = stats.getBestRank();
+            if (isSuccess && session.getFinalRank() != null) {
+                bestRank = (bestRank == null) ? session.getFinalRank() : Math.min(bestRank, session.getFinalRank());
+            }
+
+            // 최단 시간(fastestSolveTimeSeconds)
+            Long fastest = stats.getFastestSolveTimeSeconds();
+            if (isSuccess && session.getCompletedAt() != null && session.getStartedAt() != null) {
+                long sec = Duration.between(session.getStartedAt(), session.getCompletedAt()).getSeconds();
+                fastest = (fastest == null) ? sec : Math.min(fastest, sec);
+            }
+
+            // 스트릭(성공 연속 일수로 간주)
+            int currentStreak = stats.getCurrentStreak() == null ? 0 : stats.getCurrentStreak();
+            int longestStreak = stats.getLongestStreak() == null ? 0 : stats.getLongestStreak();
+            LocalDate lastPlayDate = stats.getLastPlayDate();
+            if (isSuccess) {
+                if (lastPlayDate != null && lastPlayDate.equals(today.minusDays(1))) {
+                    currentStreak = currentStreak + 1;
+                } else {
+                    currentStreak = 1;
+                }
+                longestStreak = Math.max(longestStreak, currentStreak);
+            } else {
+                currentStreak = 0; // 실패 시 스트릭 끊김
+            }
+
+            // 리플렉션으로 필드 세팅 (엔티티에 setter가 없음)
+            setField(stats, "totalGames", newTotal);
+            setField(stats, "successfulGames", newSuccess);
+            setField(stats, "failedGames", newFail);
+            setField(stats, "successRate", successRate);
+            setField(stats, "averageScore", newAvg);
+            setField(stats, "bestRank", bestRank);
+            setField(stats, "fastestSolveTimeSeconds", fastest);
+            setField(stats, "longestStreak", longestStreak);
+            setField(stats, "currentStreak", currentStreak);
+            setField(stats, "lastPlayDate", today);
+
+            memberStatisticsRepository.save(stats);
+            log.info("회원 통계 갱신 완료 - memberId: {}, total: {}, success: {}, fail: {}, avgAttempts: {}, successRate: {}",
+                    memberId, newTotal, newSuccess, newFail, newAvg, successRate);
+        } catch (Exception e) {
+            log.error("회원 통계 갱신 실패 - memberId: {}", memberId, e);
         }
     }
 
