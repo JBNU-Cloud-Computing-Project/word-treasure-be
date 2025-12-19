@@ -13,6 +13,7 @@ import cloudcomputing.wordtreasure.model.member.entity.MemberStatistics;
 import cloudcomputing.wordtreasure.model.member.repositroy.MemberRepository;
 import cloudcomputing.wordtreasure.model.member.repositroy.MemberStatisticsRepository;
 import cloudcomputing.wordtreasure.model.token.entity.TransactionType;
+import cloudcomputing.wordtreasure.model.token.service.TokenPoolService;
 import cloudcomputing.wordtreasure.model.token.service.TokenService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +39,7 @@ public class GamePlayService {
     private final AttemptRepository attemptRepository;
     private final GameConfigService gameConfigService;
     private final TokenService tokenService;
+    private final TokenPoolService tokenPoolService;
     private final SimilarityCalculator similarityCalculator;
     private final ExtraHintRepository extraHintRepository;
     private final RankingService rankingService;
@@ -149,11 +151,14 @@ public class GamePlayService {
         }
 
         int attemptCost = gameConfigService.getIntValue(GameConfigKey.ATTEMPT_COST_TOKENS);
+
         tokenService.deductTokens(
                 session.getMember().getMemberId(), attemptCost,
                 TransactionType.ATTEMPT_COST,
                 String.format("%d번째 시도", session.getAttemptCount() + 1), session
         );
+
+        tokenPoolService.addToTodayPool((long) attemptCost);
 
         String answer = session.getDailyWord().getWord();
         BigDecimal similarity = similarityCalculator.calculateSimilarity(userInput, answer);
@@ -227,6 +232,8 @@ public class GamePlayService {
                 session.getMember().getMemberId(), hintCost,
                 TransactionType.HINT_COST, "추가 힌트 요청", session
         );
+
+        tokenPoolService.addToTodayPool((long) hintCost);
 
         String hintText = generateExtraHint(session);
 
