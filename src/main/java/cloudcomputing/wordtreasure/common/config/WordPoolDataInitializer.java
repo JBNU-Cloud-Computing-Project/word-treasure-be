@@ -19,7 +19,7 @@ import java.util.List;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@Profile("local")  // local 프로필에서만 동작
+@Profile({"local", "prod"})  // local, prod 프로필에서만 동작
 public class WordPoolDataInitializer {
 
     private final WordPoolRepository wordPoolRepository;

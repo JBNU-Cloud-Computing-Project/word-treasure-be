@@ -1,0 +1,84 @@
+<!-- logback/logback-prod.xml -->
+<configuration>
+    <!-- 공통 변수 -->
+    <property name="FILE_LOG_PATTERN"
+              value="[%d{yyyy-MM-dd HH:mm:ss,Asia/Seoul}] [prod] [%thread] [%X{traceId}] %-5level [%C.%M:%L] - %msg%n"/>
+    <property name="LOGS_ROOT_PATH" value="/logs"/>
+
+    <!-- INFO 로그 -->
+    <appender name="INFO_LOG_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGS_ROOT_PATH}/info/info.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS_ROOT_PATH}/info/info-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${FILE_LOG_PATTERN}</pattern>
+        </encoder>
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>INFO</level>
+            <onMatch>ACCEPT</onMatch>
+            <onMismatch>DENY</onMismatch>
+        </filter>
+    </appender>
+
+    <!-- WARN 로그 -->
+    <appender name="WARN_LOG_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGS_ROOT_PATH}/warn/warn.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS_ROOT_PATH}/warn/warn-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${FILE_LOG_PATTERN}</pattern>
+        </encoder>
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>WARN</level>
+            <onMatch>ACCEPT</onMatch>
+            <onMismatch>DENY</onMismatch>
+        </filter>
+    </appender>
+
+    <!-- ERROR 로그 -->
+    <appender name="ERROR_LOG_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGS_ROOT_PATH}/error/error.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS_ROOT_PATH}/error/error-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>90</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${FILE_LOG_PATTERN}</pattern>
+        </encoder>
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>ERROR</level>
+            <onMatch>ACCEPT</onMatch>
+            <onMismatch>DENY</onMismatch>
+        </filter>
+    </appender>
+
+    <!-- Async Wrapping -->
+    <appender name="ASYNC_INFO" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="INFO_LOG_FILE"/>
+        <queueSize>5000</queueSize>
+    </appender>
+
+    <appender name="ASYNC_WARN" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="WARN_LOG_FILE"/>
+    </appender>
+
+    <appender name="ASYNC_ERROR" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="ERROR_LOG_FILE"/>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="ASYNC_INFO"/>
+        <appender-ref ref="ASYNC_WARN"/>
+        <appender-ref ref="ASYNC_ERROR"/>
+    </root>
+</configuration>
