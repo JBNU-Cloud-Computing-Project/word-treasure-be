@@ -1,0 +1,32 @@
+version: 0.0
+os: linux
+files:
+  - source: /
+    destination: /opt/wordtreasure
+    overwrite: yes
+    file_exists_behavior: OVERWRITE
+
+permissions:
+  - object: /opt/wordtreasure
+    owner: ubuntu
+    group: ubuntu
+    mode: 755
+    type:
+      - directory
+      - file
+
+hooks:
+  ApplicationStop:
+    - location: scripts/stop_application.sh
+      timeout: 60
+      runas: ubuntu
+
+  ApplicationStart:
+    - location: scripts/start_application.sh
+      timeout: 300
+      runas: ubuntu
+
+  ValidateService:
+    - location: scripts/validate_service.sh
+      timeout: 60
+      runas: ubuntu
