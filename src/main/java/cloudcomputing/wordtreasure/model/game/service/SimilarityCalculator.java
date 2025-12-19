@@ -6,8 +6,8 @@ import java.math.BigDecimal;
  * 유사도 계산 인터페이스
  * <p>
  * 구현체:
- * 1. TemporarySimilarityCalculator (현재) - 임시 로직
- * 2. PythonFastApiSimilarityCalculator (미래) - Python FastAPI 연동
+ * 1. TemporarySimilarityCalculator - 임시 로직
+ * 2. PythonFastApiSimilarityCalculator
  */
 public interface SimilarityCalculator {
     /**

@@ -38,8 +38,8 @@ spring:
 python:
   service:
     url: http://localhost:8000  # Python FastAPI 서버 주소
-    connect-timeout: 200000       # 연결 타임아웃 (ms)
-    read-timeout: 200000         # 읽기 타임아웃 (ms)
+    connect-timeout: 10000       # 연결 타임아웃 (ms)
+    read-timeout: 60000         # 읽기 타임아웃 (ms)
 
 springdoc:
   swagger-ui:

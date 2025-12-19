@@ -1,6 +1,8 @@
-package cloudcomputing.wordtreasure.model.game.service;
+package cloudcomputing.wordtreasure.model.game.service.similarity;
 
+import cloudcomputing.wordtreasure.model.game.service.SimilarityCalculator;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -8,17 +10,10 @@ import java.math.RoundingMode;
 
 /**
  * 임시 유사도 계산 구현체
- * <p>
- * 현재: 간단한 문자열 비교 로직
- * 향후: Python FastAPI 서비스로 교체 예정
- * <p>
- * 교체 방법:
- * 1. PythonFastApiSimilarityCalculator 구현
- * 2. @Primary 또는 @Qualifier로 전환
- * 3. 또는 이 클래스에 @Profile("local") 추가
  */
 @Slf4j
 @Component
+@Profile("prod")//바꿔야함
 public class TemporarySimilarityCalculator implements SimilarityCalculator {
     @Override
     public BigDecimal calculateSimilarity(String userInput, String answer) {
