@@ -14,10 +14,13 @@ import cloudcomputing.wordtreasure.model.member.service.MemberService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -53,7 +56,8 @@ public class AuthController {
     @Operation(summary = "로그인", description = "세션 기반 로그인을 수행합니다. 성공 시 서버 세션이 생성됩니다.")
     public ResponseEntity<ApiResponse<MemberResponse>> login(
             @Valid @RequestBody LoginRequest request,
-            HttpServletRequest httpRequest
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse
     ) {
         Member member = memberService.login(request);
 
@@ -63,6 +67,16 @@ public class AuthController {
         session.setMaxInactiveInterval(SessionConst.SESSION_TIMEOUT);
 
         log.info("세션 생성 - sessionId: {}, memberId: {}", session.getId(), member.getMemberId());
+
+        // ResponseCookie 사용 (SameSite 설정 가능 - 권장 방법)
+        ResponseCookie cookie = ResponseCookie.from("JSESSIONID", session.getId())
+                .httpOnly(true)      // XSS 공격 방지
+                .secure(true)        // HTTPS에서만 전송
+                .path("/")
+                .sameSite("None")    // Cross-site 쿠키 허용
+                .maxAge(SessionConst.SESSION_TIMEOUT)
+                .build();
+        httpResponse.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
         MemberResponse response = MemberResponse.from(member);
 
@@ -76,7 +90,7 @@ public class AuthController {
      */
     @PostMapping("/logout")
     @Operation(summary = "로그아웃", description = "현재 로그인된 세션을 무효화합니다.")
-    public ResponseEntity<ApiResponse<Void>> logout(HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<Void>> logout(HttpServletRequest request, HttpServletResponse response) {
         HttpSession session = request.getSession(false);
 
         if (session != null) {
@@ -84,6 +98,17 @@ public class AuthController {
             log.info("로그아웃 - sessionId: {}, memberId: {}", session.getId(), memberId);
             session.invalidate();
         }
+
+        // 쿠키 삭제
+        ResponseCookie cookie = ResponseCookie.from("JSESSIONID", "")
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .sameSite("None")
+                .maxAge(0)
+                .build();
+
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
         return ResponseEntity.ok(
                 ApiResponse.success(AuthSuccessCode.LOGOUT_SUCCESS)

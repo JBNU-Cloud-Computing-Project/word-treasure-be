@@ -17,7 +17,7 @@ import java.math.BigDecimal;
         uniqueConstraints = {
                 @UniqueConstraint(
                         name = "uk_daily_word_rank",
-                        columnNames = {"daily_word_id", "member_id"}
+                        columnNames = {"daily_word_id", "ranking"}
                 ),
                 @UniqueConstraint(
                         name = "uk_daily_word_member",
@@ -36,7 +36,7 @@ public class DailyRanking extends BaseTimeEntity {
     @JoinColumn(name = "daily_word_id", nullable = false)
     private DailyWord dailyWord;
 
-    @Column(nullable = false)
+    @Column(name = "ranking", nullable = false)
     private Integer rank;
 
     @ManyToOne(fetch = FetchType.LAZY)

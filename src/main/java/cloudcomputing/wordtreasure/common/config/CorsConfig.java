@@ -24,7 +24,7 @@ public class CorsConfig {
         config.addAllowedOrigin("http://localhost:5174"); // Vite 포트 충돌 시 대비
 
         // 프로덕션: Vercel 배포 주소 (배포 후 추가)
-        // config.addAllowedOrigin("https://your-app.vercel.app");
+        config.addAllowedOrigin("https://word-treasure-fe.vercel.app");
 
         // 3. 허용할 HTTP 메서드
         config.addAllowedMethod("GET");

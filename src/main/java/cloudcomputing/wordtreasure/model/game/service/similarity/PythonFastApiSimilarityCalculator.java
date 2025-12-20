@@ -26,7 +26,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-@Profile("local") //바꿔야함
+@Profile("prod")
 @Primary
 @RequiredArgsConstructor
 public class PythonFastApiSimilarityCalculator implements SimilarityCalculator {
