@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 
 @Slf4j
 @RestController
@@ -33,7 +34,8 @@ public class TokenPoolController {
     public ResponseEntity<ApiResponse<TodayTokenPoolResponse>> getTodayTokenPool() {
         log.info("오늘의 토큰 풀 조회 요청");
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        ;
         DailyTokenPool pool = tokenPoolService.getPoolByDate(today);
 
         TodayTokenPoolResponse response;

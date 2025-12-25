@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -49,6 +50,9 @@ public class DailyWordPublishService {
         // 3. DailyWord 생성 및 저장
         DailyWord dailyWord = DailyWord.fromWordPool(selectedWord, targetDate);
         DailyWord saved = dailyWordRepository.save(dailyWord);
+
+        Optional<DailyWord> byGameDate = dailyWordRepository.findByGameDate(targetDate);
+        log.info("date :{}, word :{}", byGameDate.get().getGameDate(), byGameDate.get().getWord());
 
         // 4. WordPool의 사용 통계 업데이트
         selectedWord.markAsUsed(targetDate);
@@ -113,8 +117,8 @@ public class DailyWordPublishService {
      * 오늘의 단어 자동 출제 (스케줄러에서 호출)
      */
     @Transactional
-    public DailyWord publishTodayWord() {
-        return publishWordForDate(LocalDate.now());
+    public DailyWord publishTodayWord(LocalDate today) {
+        return publishWordForDate(today);
     }
 
     /**

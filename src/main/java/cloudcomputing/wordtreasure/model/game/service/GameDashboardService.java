@@ -10,15 +10,13 @@ import cloudcomputing.wordtreasure.model.member.entity.Member;
 import cloudcomputing.wordtreasure.model.member.entity.MemberStatistics;
 import cloudcomputing.wordtreasure.model.member.repositroy.MemberRepository;
 import cloudcomputing.wordtreasure.model.member.repositroy.MemberStatisticsRepository;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
+import java.time.*;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,6 +32,7 @@ public class GameDashboardService {
     private final AttemptRepository attemptRepository;
     private final ExtraHintRepository extraHintRepository;
     private final GameConfigService gameConfigService;
+    private final EntityManager entityManager;
 
     /**
      * 현재 게임 상태 조회
@@ -42,9 +41,30 @@ public class GameDashboardService {
         log.info("현재 게임 상태 조회 - memberId: {}", memberId);
 
         // 1. 오늘의 일일 단어 조회
-        DailyWord todayWord = dailyWordRepository.findTodayWord()
+        entityManager.clear();
+        ZoneId seoulZone = ZoneId.of("Asia/Seoul");
+        LocalDateTime startOfToday = LocalDate.now(seoulZone).atStartOfDay();
+
+        log.info("오늘 자정(서울): {}", startOfToday);
+
+        DailyWord todayWord = dailyWordRepository.findTodayWordByCreatedAt(startOfToday)
                 .orElseThrow(() -> new IllegalStateException("오늘의 단어가 등록되지 않았습니다."));
 
+        log.info("✅ 조회된 단어: id={}, gameDate={}, word={}, createdAt={}",
+                todayWord.getId(),
+                todayWord.getGameDate(),
+                todayWord.getWord(),
+                todayWord.getCreatedAt());
+/*
+        log.info("DB 조회 시작 - findTodayWord({})", today);
+        Optional<DailyWord> wordOpt = dailyWordRepository.findTodayWord(today);
+        log.info("DB 조회 결과 - isPresent: {}", wordOpt.isPresent());
+
+        DailyWord todayWord = dailyWordRepository.findTodayWord(today)
+                .orElseThrow(() -> new IllegalStateException("오늘의 단어가 등록되지 않았습니다."));
+
+        log.info("✅ 조회된 단어: gameDate={}, word={}",
+                todayWord.getGameDate(), todayWord.getWord());*/
         // 2. 현재 회원의 게임 세션 조회
         Optional<GameSession> sessionOpt = gameSessionRepository
                 .findByMemberIdAndDailyWordId(memberId, todayWord.getId());
@@ -115,8 +135,12 @@ public class GameDashboardService {
      * 자정까지 남은 시간 계산 (HH:MM:SS 형식)
      */
     private String calculateRemainingTime() {
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime midnight = LocalDateTime.of(LocalDate.now().plusDays(1), LocalTime.MIDNIGHT);
+        ZoneId seoulZone = ZoneId.of("Asia/Seoul");
+        ZonedDateTime now = ZonedDateTime.now(seoulZone);
+        ZonedDateTime midnight = now.toLocalDate()
+                .plusDays(1)
+                .atStartOfDay(seoulZone);
+
         Duration duration = Duration.between(now, midnight);
 
         long hours = duration.toHours();

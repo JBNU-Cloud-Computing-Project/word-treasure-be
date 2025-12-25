@@ -15,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +38,8 @@ public class GameStatsService {
         log.info("오늘의 단어 통계 조회");
 
         // 1. 오늘의 단어 조회
-        DailyWord todayWord = dailyWordRepository.findTodayWord()
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        DailyWord todayWord = dailyWordRepository.findTodayWord(today)
                 .orElse(null);
 
         if (todayWord == null) {

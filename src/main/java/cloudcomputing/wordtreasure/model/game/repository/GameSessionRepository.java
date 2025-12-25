@@ -80,22 +80,27 @@ public interface GameSessionRepository extends JpaRepository<GameSession, Long> 
      * 특정 회원이 오늘 게임을 시작했는지 확인
      */
     @Query("SELECT COUNT(gs) > 0 FROM GameSession gs " +
+            "JOIN gs.dailyWord dw " +
             "WHERE gs.member.memberId = :memberId " +
-            "AND gs.dailyWord.gameDate = :gameDate")
+            "AND dw.createdAt >= :startOfDay " +
+            "AND dw.createdAt < :endOfDay")
     boolean existsByMemberIdAndGameDate(
             @Param("memberId") Long memberId,
-            @Param("gameDate") LocalDate gameDate
+            @Param("startOfDay") LocalDateTime startOfDay,
+            @Param("endOfDay") LocalDateTime endOfDay
     );
 
     @Query("SELECT gs FROM GameSession gs " +
             "JOIN FETCH gs.member " +
-            "JOIN FETCH gs.dailyWord " +
-            "WHERE gs.dailyWord.gameDate = :date " +
+            "JOIN FETCH gs.dailyWord dw " +
+            "WHERE dw.createdAt >= :startOfDay " +
+            "AND dw.createdAt < :endOfDay " +
             "ORDER BY gs.highestSimilarity DESC NULLS LAST, " +
             "gs.attemptCount ASC, " +
             "COALESCE(gs.completedAt, gs.updatedAt) ASC")
     Page<GameSession> findDailyLeaderboard(
-            @Param("date") LocalDate date,
+            @Param("startOfDay") LocalDateTime startOfDay,
+            @Param("endOfDay") LocalDateTime endOfDay,
             Pageable pageable
     );
 
@@ -104,19 +109,25 @@ public interface GameSessionRepository extends JpaRepository<GameSession, Long> 
      */
     @Query("SELECT gs FROM GameSession gs " +
             "JOIN FETCH gs.member " +
+            "JOIN FETCH gs.dailyWord dw " +
             "WHERE gs.member.memberId = :memberId " +
-            "AND gs.dailyWord.gameDate = :date")
+            "AND dw.createdAt >= :startOfDay " +
+            "AND dw.createdAt < :endOfDay")
     Optional<GameSession> findDailySessionByMemberId(
             @Param("memberId") Long memberId,
-            @Param("date") LocalDate date
+            @Param("startOfDay") LocalDateTime startOfDay,
+            @Param("endOfDay") LocalDateTime endOfDay
     );
 
     /**
      * 일간 전체 성공자 수 조회
      */
     @Query("SELECT COUNT(gs) FROM GameSession gs " +
-            "WHERE gs.dailyWord.gameDate = :date ")
-    long countDailyParticipants(@Param("date") LocalDate date);
+            "JOIN gs.dailyWord dw " +
+            "WHERE dw.createdAt >= :startOfDay " +
+            "AND dw.createdAt < :endOfDay")
+    long countDailyParticipants(@Param("startOfDay") LocalDateTime startOfDay,
+                                @Param("endOfDay") LocalDateTime endOfDay);
 
     /**
      * 기간별 리더보드 조회 (누적 토큰 기준)

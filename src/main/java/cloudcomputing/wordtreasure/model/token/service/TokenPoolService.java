@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 
 /**
  * 토큰 풀 관리 서비스
@@ -32,7 +33,8 @@ public class TokenPoolService {
             return;
         }
 
-        LocalDate today = LocalDate.now();
+        ZoneId seoulZone = ZoneId.of("Asia/Seoul");
+        LocalDate today = LocalDate.now(seoulZone);
         DailyTokenPool pool = poolRepository.findByGameDate(today)
                 .orElseGet(() -> createNewPool(today));
 
@@ -79,6 +81,6 @@ public class TokenPoolService {
      */
     @Transactional(readOnly = true)
     public java.util.List<DailyTokenPool> getUndistributedPools() {
-        return poolRepository.findUndistributedPools(LocalDate.now());
+        return poolRepository.findUndistributedPools(LocalDate.now(ZoneId.of("Asia/Seoul")));
     }
 }

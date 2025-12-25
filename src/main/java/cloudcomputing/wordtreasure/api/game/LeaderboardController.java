@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 
 @Slf4j
@@ -48,7 +49,7 @@ public class LeaderboardController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        LocalDate targetDate = (date != null) ? date : LocalDate.now();
+        LocalDate targetDate = (date != null) ? date : LocalDate.now(ZoneId.of("Asia/Seoul"));
         log.info("일간 순위 조회 - memberId: {}, date: {}, page: {}, size: {}",
                 memberId, targetDate, page, size);
 

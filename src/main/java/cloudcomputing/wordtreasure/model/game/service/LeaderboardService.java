@@ -37,8 +37,12 @@ public class LeaderboardService {
     public List<LeaderboardEntry> getDailyLeaderboard(LocalDate date, int page, int size) {
         log.info("일간 리더보드 조회 - date: {}, page: {}, size: {}", date, page, size);
 
+        LocalDateTime startOfDay = date.atStartOfDay();
+        LocalDateTime endOfDay = date.plusDays(1).atStartOfDay();
+
         Pageable pageable = PageRequest.of(page - 1, size);
-        Page<GameSession> sessionPage = gameSessionRepository.findDailyLeaderboard(date, pageable);
+        Page<GameSession> sessionPage = gameSessionRepository
+                .findDailyLeaderboard(startOfDay, endOfDay, pageable);
 
         AtomicInteger rank = new AtomicInteger((page - 1) * size + 1);
 
@@ -138,7 +142,11 @@ public class LeaderboardService {
     public MyLeaderboardRanking getMyDailyRanking(LocalDate date, Long memberId) {
         log.info("내 일간 순위 조회 - memberId: {}, date: {}", memberId, date);
 
-        Optional<GameSession> sessionOpt = gameSessionRepository.findDailySessionByMemberId(memberId, date);
+        LocalDateTime startOfDay = date.atStartOfDay();
+        LocalDateTime endOfDay = date.plusDays(1).atStartOfDay();
+
+        Optional<GameSession> sessionOpt = gameSessionRepository
+                .findDailySessionByMemberId(memberId, startOfDay, endOfDay);
 
         if (sessionOpt.isEmpty()) {
             return null;  // 참여하지 않음
@@ -146,7 +154,7 @@ public class LeaderboardService {
 
         GameSession session = sessionOpt.get();
 
-        long betterCount = gameSessionRepository.findDailyLeaderboard(date, Pageable.unpaged())
+        long betterCount = gameSessionRepository.findDailyLeaderboard(startOfDay, endOfDay, Pageable.unpaged())
                 .stream()
                 .filter(gs -> {
                     BigDecimal mySimil = session.getHighestSimilarity();
@@ -295,13 +303,13 @@ public class LeaderboardService {
      */
     public long getTotalParticipants(LocalDate startDate, LocalDate endDate) {
         if (startDate == null || endDate == null) {
-            // 전체 기간
             return gameSessionRepository.countAllParticipants();
         } else if (startDate.equals(endDate)) {
-            // 일간
-            return gameSessionRepository.countDailyParticipants(startDate);
+            LocalDateTime startOfDay = startDate.atStartOfDay();
+            LocalDateTime endOfDay = startDate.plusDays(1).atStartOfDay();
+            return gameSessionRepository.countDailyParticipants(startOfDay, endOfDay);
         } else {
-            // 기간별
+            // 기간별 (그대로 유지)
             return gameSessionRepository.countPeriodParticipants(startDate, endDate);
         }
     }

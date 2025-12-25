@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,8 +19,22 @@ public interface DailyWordRepository extends JpaRepository<DailyWord, Long> {
     /**
      * 오늘의 일일 단어 조회
      */
-    @Query("SELECT dw FROM DailyWord dw WHERE dw.gameDate = CURRENT_DATE")
-    Optional<DailyWord> findTodayWord();
+    /*@Query(value = "SELECT * FROM daily_words WHERE game_date = :date", nativeQuery = true)
+    Optional<DailyWord> findTodayWord(@Param("date") LocalDate date);*/
+    @Query("SELECT dw FROM DailyWord dw WHERE dw.gameDate = :date")
+    Optional<DailyWord> findTodayWord(@Param("date") LocalDate date);
+
+    @Query("SELECT dw FROM DailyWord dw " +
+            "WHERE DATE(dw.createdAt) = :date " +
+            "ORDER BY dw.createdAt DESC")
+    Optional<DailyWord> findByCreatedDate(@Param("date") LocalDate date);
+
+    // DailyWordRepository
+    @Query("SELECT dw FROM DailyWord dw " +
+            "WHERE dw.createdAt >= :startOfDay " +
+            "ORDER BY dw.createdAt DESC " +
+            "LIMIT 1")
+    Optional<DailyWord> findTodayWordByCreatedAt(@Param("startOfDay") LocalDateTime startOfDay);
 
     /**
      * 날짜 범위로 일일 단어 목록 조회
