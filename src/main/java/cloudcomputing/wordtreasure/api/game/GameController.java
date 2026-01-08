@@ -41,7 +41,7 @@ public class GameController {
     public ResponseEntity<ApiResponse<CurrentGameResponse>> getCurrentGame(
             @Login Long memberId
     ) {
-        log.info("현재 게임 상태 조회 요청 - memberId: {}", memberId);
+        log.info("현재 게임 상태 조회 오늘만들었는데요 맞나요 - memberId: {}", memberId);
 
         CurrentGameInfo gameInfo = dashboardService.getCurrentGameInfo(memberId);
         CurrentGameResponse response = CurrentGameResponse.from(gameInfo);

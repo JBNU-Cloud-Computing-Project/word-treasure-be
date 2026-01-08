@@ -13,11 +13,11 @@ import java.math.RoundingMode;
  */
 @Slf4j
 @Component
-@Profile("prod")//바꿔야함
+@Profile("local")
 public class TemporarySimilarityCalculator implements SimilarityCalculator {
     @Override
     public BigDecimal calculateSimilarity(String userInput, String answer) {
-        log.debug("임시 유사도 계산 - userInput: {}, answer: {}", userInput, answer);
+        log.info("임시 유사도 계산 - userInput: {}, answer: {}", userInput, answer);
 
         String normalizedInput = normalize(userInput);
         String normalizedAnswer = normalize(answer);

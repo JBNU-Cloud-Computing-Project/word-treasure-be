@@ -11,6 +11,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 
 @Slf4j
 @Component
@@ -31,8 +32,9 @@ public class DailyWordScheduler {
         log.info("║    앱 시작 - 누락된 작업 확인 시작     ║");
         log.info("╚════════════════════════════════════════╝");
 
-        LocalDate yesterday = LocalDate.now().minusDays(1);
-        LocalDate today = LocalDate.now();
+        ZoneId seoulZone = ZoneId.of("Asia/Seoul");
+        LocalDate yesterday = LocalDate.now(seoulZone).minusDays(1);
+        LocalDate today = LocalDate.now(seoulZone);
 
         // 1. 어제 토큰 배분 확인 및 실행
         try {
@@ -46,7 +48,7 @@ public class DailyWordScheduler {
         // 2. 오늘 단어 출제 확인 및 실행
         try {
             log.info("오늘({}) 단어 출제 상태 확인 중...", today);
-            DailyWord published = dailyWordPublishService.publishTodayWord();
+            DailyWord published = dailyWordPublishService.publishTodayWord(today);
 
             log.info("✅ 오늘 단어 출제 완료!");
             log.info("   - 단어: {}", published.getWord());
@@ -77,8 +79,8 @@ public class DailyWordScheduler {
         log.info("╔════════════════════════════════════════╗");
         log.info("║       자정 스케줄러 실행 시작           ║");
         log.info("╚════════════════════════════════════════╝");
-
-        LocalDate yesterday = LocalDate.now().minusDays(1);
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        LocalDate yesterday = LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(1);
 
         try {
             log.info("어제 토큰 풀 배분 시작...");
@@ -91,7 +93,7 @@ public class DailyWordScheduler {
 
         try {
             log.info("오늘의 단어 출제 시작...");
-            DailyWord published = dailyWordPublishService.publishTodayWord();
+            DailyWord published = dailyWordPublishService.publishTodayWord(today);
 
             log.info("✅ 일일 단어 출제 성공!");
             log.info("   - 단어: {}", published.getWord());

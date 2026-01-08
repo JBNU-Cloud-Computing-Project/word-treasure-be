@@ -26,7 +26,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-@Profile("local") //바꿔야함
+@Profile("prod")
 @Primary
 @RequiredArgsConstructor
 public class PythonFastApiSimilarityCalculator implements SimilarityCalculator {
@@ -38,7 +38,7 @@ public class PythonFastApiSimilarityCalculator implements SimilarityCalculator {
 
     @Override
     public BigDecimal calculateSimilarity(String userInput, String answer) {
-        log.debug("Python 서비스 유사도 계산 요청 - userInput: {}, answer: {}", userInput, answer);
+        log.info("Python 서비스 유사도 계산 요청 - userInput: {}, answer: {}", userInput, answer);
 
         try {
             SimilarityResponseDto response = callPythonService(userInput, answer);
@@ -59,7 +59,7 @@ public class PythonFastApiSimilarityCalculator implements SimilarityCalculator {
 
     @Override
     public String generateHint(String userInput, String answer, BigDecimal similarity) {
-        log.debug("Python 서비스 힌트 생성 요청 - userInput: {}, answer: {}", userInput, answer);
+        log.info("Python 서비스 힌트 생성 요청 - userInput: {}, answer: {}", userInput, answer);
 
         try {
             // Python 서비스 호출 (이미 힌트가 포함됨)

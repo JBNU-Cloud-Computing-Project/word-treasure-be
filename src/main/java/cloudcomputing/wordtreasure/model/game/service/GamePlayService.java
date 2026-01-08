@@ -25,6 +25,7 @@ import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
@@ -87,7 +88,10 @@ public class GamePlayService {
         DailyWord dailyWord = dailyWordRepository.findById(dailyWordId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 일일 단어입니다."));
 
-        if (!dailyWord.getGameDate().equals(LocalDate.now())) {
+        ZoneId seoulZone = ZoneId.of("Asia/Seoul");
+        LocalDateTime startOfToday = LocalDate.now(seoulZone).atStartOfDay();
+
+        if (dailyWord.getCreatedAt().isBefore(startOfToday)) {
             throw new IllegalStateException("오늘의 단어가 아닙니다.");
         }
 
@@ -525,10 +529,14 @@ public class GamePlayService {
      * 자정 기준 만료 체크
      */
     private void validateNotExpired(GameSession session) {
-        LocalDate today = LocalDate.now();
-        LocalDate sessionDate = session.getDailyWord().getGameDate();
+        ZoneId seoulZone = ZoneId.of("Asia/Seoul");
+        LocalDateTime startOfToday = LocalDate.now(seoulZone).atStartOfDay();
+        LocalDateTime startOfTomorrow = LocalDate.now(seoulZone).plusDays(1).atStartOfDay();
 
-        if (!today.equals(sessionDate)) {
+        LocalDateTime wordCreatedAt = session.getDailyWord().getCreatedAt();
+
+        // 오늘 자정 ~ 내일 자정 사이에 생성된 단어가 아니면 만료
+        if (wordCreatedAt.isBefore(startOfToday) || wordCreatedAt.isAfter(startOfTomorrow)) {
             throw new IllegalStateException("게임이 만료되었습니다. (자정 이후에는 진행할 수 없습니다.)");
         }
     }
